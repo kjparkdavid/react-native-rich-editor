@@ -1,5 +1,5 @@
 {
-  "name": "react-native-pell-rich-editor",
+  "name": "rich-editor",
   "description": "React Native Rich Editor",
   "version": "1.8.8",
   "main": "src/index.js",
@@ -13,8 +13,7 @@
     "type": "git",
     "url": "https://github.com/wxik/react-native-rich-editor.git"
   },
-  "dependencies": {
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/react-native": "*"
   },

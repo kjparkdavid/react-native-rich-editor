@@ -1,5 +1,5 @@
 import React, {Component} from 'react';
-import {FlatList, Image, StyleSheet, TouchableOpacity, View} from 'react-native';
+import {Dimensions, FlatList, Image, StyleSheet, TouchableOpacity, View} from 'react-native';
 import {actions} from './const';
 
 export const defaultActions = [
@@ -49,7 +49,6 @@ function getDefaultIcon() {
 
 // noinspection FallThroughInSwitchStatementJS
 export default class RichToolbar extends Component {
-
     static defaultProps = {
         actions: defaultActions,
         disabled: false,
@@ -82,7 +81,7 @@ export default class RichToolbar extends Component {
             let {items = []} = prevState;
             return {
                 actions,
-                data: actions.map((action) => ({action, selected: items.includes(action)})),
+                data: actions.map(action => ({action, selected: items.includes(action)})),
             };
         }
         return null;
@@ -97,7 +96,7 @@ export default class RichToolbar extends Component {
         if (!editor) {
             throw new Error('Toolbar has no editor!');
         } else {
-            editor.registerToolbar((selectedItems) => this.setSelectedItems(selectedItems));
+            editor.registerToolbar(selectedItems => this.setSelectedItems(selectedItems));
             this.editor = editor;
         }
     };
@@ -107,7 +106,7 @@ export default class RichToolbar extends Component {
         if (this.editor && items !== selectedItems) {
             this.setState({
                 items,
-                data: this.state.actions.map((action) => ({action, selected: items.includes(action)})),
+                data: this.state.actions.map(action => ({action, selected: items.includes(action)})),
             });
         }
     }
@@ -262,7 +261,8 @@ export default class RichToolbar extends Component {
 const styles = StyleSheet.create({
     barContainer: {
         height: 44,
-        backgroundColor: '#efefef',
+        backgroundColor: 'white',
+        width: Dimensions.get('window').width,
         alignItems: 'center',
     },
 
