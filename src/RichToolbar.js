@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
         height: 44,
         backgroundColor: 'white',
         width: Dimensions.get('window').width,
-        alignItems: 'center',
+        paddingHorizontal: 10,
     },
 
     item: {
