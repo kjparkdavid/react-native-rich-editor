@@ -201,7 +201,7 @@ export default class RichToolbar extends Component {
         let that = this;
         const icon = that._getButtonIcon(action);
         const {iconSize, iconGap, disabled, itemStyle} = that.props;
-        const style = selected ? that._getButtonSelectedStyle() : that._getButtonUnselectedStyle();
+        const style = selected ? styles.selected : {};
         const tintColor = disabled
             ? that.props.disabledIconTint
             : selected
@@ -211,7 +211,7 @@ export default class RichToolbar extends Component {
             <TouchableOpacity
                 key={action}
                 disabled={disabled}
-                style={[{width: iconGap + iconSize}, styles.item, itemStyle, style]}
+                style={[styles.item, itemStyle, style]}
                 onPress={() => that._onPress(action)}>
                 {icon ? (
                     typeof icon === 'function' ? (
@@ -220,9 +220,10 @@ export default class RichToolbar extends Component {
                         <Image
                             source={icon}
                             style={{
-                                tintColor,
                                 height: iconSize,
                                 width: iconSize,
+                                alignSelf: 'center',
+                                justifyContent: 'center',
                             }}
                         />
                     )
@@ -263,11 +264,20 @@ const styles = StyleSheet.create({
         height: 44,
         backgroundColor: 'white',
         width: Dimensions.get('window').width,
-        paddingHorizontal: 10,
+        paddingHorizontal: 6,
+        justifyContent: 'center',
     },
 
     item: {
+        width: 24,
+        height: 24,
+        padding: 10,
+        marginHorizontal: 4,
+        alignSelf: 'center',
         justifyContent: 'center',
-        alignItems: 'center',
+    },
+
+    selected: {
+        backgroundColor: '#D3FFE6',
     },
 });
