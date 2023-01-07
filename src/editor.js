@@ -52,8 +52,33 @@ function createHTML(options = {}) {
         * {outline: 0px solid transparent;-webkit-tap-highlight-color: rgba(0,0,0,0);-webkit-touch-callout: none;box-sizing: border-box;}
         html, body { margin: 0; padding: 0;font-family: Arial, Helvetica, sans-serif; font-size:1em; height: 100%}
         body { overflow-y: hidden; -webkit-overflow-scrolling: touch;background-color: ${backgroundColor};caret-color: ${caretColor};}
-        .content {font-family: Arial, Helvetica, sans-serif;color: ${color}; width: 100%;${!useContainer ? 'height:100%;' : ''}-webkit-overflow-scrolling: touch;padding-left: 0;padding-right: 0;}
+        .content {font-family: Arial, Helvetica, sans-serif;color: ${color}; width: 100%;${
+        !useContainer ? 'height:100%;' : ''
+    }-webkit-overflow-scrolling: touch;padding-left: 0;padding-right: 0;}
         .pell { height: 100%;} .pell-content { outline: 0; overflow-y: auto;padding: 10px;height: 100%;${contentCSSText}}
+        .image-options{
+            display:none; 
+            position:absolute; 
+            bottom: -64px; 
+            left: 0;            
+            flex-direction:row; 
+            height: 56; 
+            background-color:white;
+            justify-content:space-between; 
+            padding: 8px;
+            z-index: 999;
+            max-width: 240px;
+            border-radius: 5px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        .image-option-button{
+            display: flex;
+            flex-direction: column;
+            background-color: transparent;
+            border: none;
+            justify-content: center;
+            align-items: center;
+        }
     </style>
     <style>
         [placeholder]:empty:before { content: attr(placeholder); color: ${placeholderColor};}
@@ -61,6 +86,7 @@ function createHTML(options = {}) {
     </style>
     ${getContentCSS()}
     <style>${cssText}</style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
 <div class="content"><div id="editor" class="pell"/></div>
@@ -455,12 +481,12 @@ function createHTML(options = {}) {
                 } else if (enterStatus && queryCommandValue(formatBlock) === 'blockquote') {
                     formatParagraph();
                 }
-
                 saveSelection();
                 handleChange(_ref);
                 settings.onChange();
                 ${inputListener} && postAction({type: "ON_INPUT", data: {inputType: _ref.inputType, data: _ref.data}});
             };
+            
             appendChild(settings.element, content);
 
             if (settings.styleWithCSS) exec('styleWithCSS');
@@ -638,6 +664,18 @@ function createHTML(options = {}) {
         isRN: !!window.ReactNativeWebView ,
         document: document
     });
+    
+    $(document).ready(function() {
+        $(document).on('click', '.custom-image', function() {
+            // Your code here
+            console.log('jquery: image clicked', $(this).siblings('image-options'));
+            $(this).siblings('.image-options').css('display', function(_, current) {
+                console.log(current);
+                return current === 'none' ? 'flex' : 'none';
+            });
+        });
+    });
+   
 </script>
 </body>
 </html>

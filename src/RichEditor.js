@@ -7,7 +7,6 @@ import {createHTML} from './editor';
 const PlatformIOS = Platform.OS === 'ios';
 
 export default class RichTextEditor extends Component {
-
     static defaultProps = {
         contentInset: {},
         style: {},
@@ -41,7 +40,15 @@ export default class RichTextEditor extends Component {
         that.layout = {};
         that.selectionChangeListeners = [];
         const {
-            editorStyle: {backgroundColor, color, placeholderColor, initialCSSText, cssText, contentCSSText, caretColor} = {},
+            editorStyle: {
+                backgroundColor,
+                color,
+                placeholderColor,
+                initialCSSText,
+                cssText,
+                contentCSSText,
+                caretColor,
+            } = {},
             html,
             pasteAsPlainText,
             onPaste,
@@ -136,11 +143,15 @@ export default class RichTextEditor extends Component {
 
     onMessage(event) {
         const that = this;
-        const {onFocus, onBlur, onChange, onPaste, onKeyUp, onKeyDown, onInput, onMessage, onCursorPosition} = that.props;
+        const {onFocus, onBlur, onChange, onPaste, onKeyUp, onKeyDown, onInput, onMessage, onCursorPosition} =
+            that.props;
         try {
             const message = JSON.parse(event.nativeEvent.data);
             const data = message.data;
             switch (message.type) {
+                // case messages.CUSTOM_IMAGE_CLICKED:
+                //     this.dismissKeyboard();
+                //     break;
                 case messages.CONTENT_HTML_RESPONSE:
                     if (that.contentResolve) {
                         that.contentResolve(message.data);
@@ -227,14 +238,14 @@ export default class RichTextEditor extends Component {
     }
 
     componentDidUpdate(prevProps, prevState, snapshot) {
-        const {editorStyle, disabled,placeholder} = this.props;
+        const {editorStyle, disabled, placeholder} = this.props;
         if (prevProps.editorStyle !== editorStyle) {
             editorStyle && this.setContentStyle(editorStyle);
         }
         if (disabled !== prevProps.disabled) {
             this.setDisable(disabled);
         }
-        if(placeholder!== prevProps.placeholder){
+        if (placeholder !== prevProps.placeholder) {
             this.setPlaceholder(placeholder);
         }
     }
@@ -461,6 +472,6 @@ const styles = StyleSheet.create({
     },
 
     webview: {
-        backgroundColor: "transparent"
-    }
+        backgroundColor: 'transparent',
+    },
 });
