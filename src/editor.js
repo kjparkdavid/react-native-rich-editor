@@ -86,7 +86,7 @@ function createHTML(options = {}) {
     </style>
     ${getContentCSS()}
     <style>${cssText}</style>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    // <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
 <div class="content"><div id="editor" class="pell"/></div>
@@ -665,16 +665,16 @@ function createHTML(options = {}) {
         document: document
     });
     
-    $(document).ready(function() {
-        $(document).on('click', '.custom-image', function() {
-            // Your code here
-            console.log('jquery: image clicked', $(this).siblings('image-options'));
-            $(this).siblings('.image-options').css('display', function(_, current) {
-                console.log(current);
-                return current === 'none' ? 'flex' : 'none';
-            });
-        });
-    });
+    // $(document).ready(function() {
+    //     $(document).on('click', '.custom-image', function() {
+    //         // Your code here
+    //         console.log('jquery: image clicked', $(this).siblings('image-options'));
+    //         $(this).siblings('.image-options').css('display', function(_, current) {
+    //             console.log(current);
+    //             return current === 'none' ? 'flex' : 'none';
+    //         });
+    //     });
+    // });
    
 </script>
 </body>
