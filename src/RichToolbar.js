@@ -263,7 +263,6 @@ const styles = StyleSheet.create({
     barContainer: {
         height: 44,
         width: Dimensions.get('window').width,
-        paddingHorizontal: 6,
         justifyContent: 'center',
     },
 

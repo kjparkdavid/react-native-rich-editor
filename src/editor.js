@@ -584,6 +584,7 @@ function createHTML(options = {}) {
                     if (ele.checked) ele.setAttribute('checked', '');
                     else ele.removeAttribute('checked');
                 }
+                postAction({type: 'CONTENT_CLICK'});
             }
             addEventListener(content, 'touchcancel', handleSelecting);
             addEventListener(content, 'mouseup', handleSelecting);
