@@ -261,6 +261,7 @@ export default class RichTextEditor extends Component {
         let that = this;
         const {html, editorStyle, useContainer, style, ...rest} = that.props;
         const {html: viewHTML} = that.state;
+        const DISABLE_TEXT_SELECT = "document.body.style.userSelect = 'none'"; // For not selecting any text when user is interacting with a sticker
         return (
             <>
                 <WebView
@@ -280,6 +281,7 @@ export default class RichTextEditor extends Component {
                     javaScriptEnabled={true}
                     source={viewHTML}
                     onLoad={that.init}
+                    injectedJavaScript={DISABLE_TEXT_SELECT}
                 />
                 {Platform.OS === 'android' && <TextInput ref={ref => (that._input = ref)} style={styles._input} />}
             </>
