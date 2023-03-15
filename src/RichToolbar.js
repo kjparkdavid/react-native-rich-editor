@@ -201,7 +201,7 @@ export default class RichToolbar extends Component {
         let that = this;
         const icon = that._getButtonIcon(action);
         const {iconSize, iconGap, disabled, itemStyle} = that.props;
-        const style = selected ? styles.selected : {};
+        const style = selected ? this.props.selectedButtonStyle : {};
         const tintColor = disabled
             ? that.props.disabledIconTint
             : selected
