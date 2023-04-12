@@ -32,9 +32,9 @@ function createHTML(options = {}) {
         keyDownListener = false,
         keyUpListener = false,
         inputListener = false,
-        autoCapitalize = 'off',
+        autoCapitalize = 'on',
         enterKeyHint = '',
-        autoCorrect = false,
+        autoCorrect = true,
         defaultParagraphSeparator = 'div',
         // When first gaining focus, the cursor moves to the end of the text
         firstFocusEnd = true,
