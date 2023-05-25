@@ -34,6 +34,7 @@ function createHTML(options = {}) {
         inputListener = false,
         autoCapitalize = 'on',
         enterKeyHint = '',
+        initialFocus = false,
         autoCorrect = true,
         defaultParagraphSeparator = 'div',
         // When first gaining focus, the cursor moves to the end of the text
@@ -460,7 +461,7 @@ function createHTML(options = {}) {
             content.id = 'content';
             content.contentEditable = true;
             content.spellcheck = false;
-            content.autofocus = true;
+            content.autofocus = ${initialFocus};
             content.enterKeyHint = '${enterKeyHint}';
             content.autocapitalize = '${autoCapitalize}';
             content.autocorrect = ${autoCorrect};
