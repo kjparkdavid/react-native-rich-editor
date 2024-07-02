@@ -143,8 +143,19 @@ export default class RichTextEditor extends Component {
 
     onMessage(event) {
         const that = this;
-        const {onFocus, onBlur, onClick, onChange, onPaste, onKeyUp, onKeyDown, onInput, onMessage, onCursorPosition} =
-            that.props;
+        const {
+            onFocus,
+            onBlur,
+            onClick,
+            onChange,
+            onPaste,
+            onKeyUp,
+            onKeyDown,
+            onInput,
+            onMessage,
+            onCursorPosition,
+            onAttributeChanged,
+        } = that.props;
         try {
             const message = JSON.parse(event.nativeEvent.data);
             const data = message.data;
@@ -205,6 +216,9 @@ export default class RichTextEditor extends Component {
                 case messages.OFFSET_Y:
                     let offsetY = Number.parseInt(Number.parseInt(data) + that.layout.y || 0);
                     offsetY > 0 && onCursorPosition(offsetY);
+                    break;
+                case messages.ATTRIBUTE_CHANGED:
+                    onAttributeChanged?.(data);
                     break;
                 default:
                     onMessage?.(message);

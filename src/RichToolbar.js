@@ -108,6 +108,7 @@ export default class RichToolbar extends Component {
                 items,
                 data: this.state.actions.map(action => ({action, selected: items.includes(action)})),
             });
+            this.props.onSelectionChanged(items);
         }
     }
 
@@ -261,9 +262,11 @@ export default class RichToolbar extends Component {
 
 const styles = StyleSheet.create({
     barContainer: {
-        height: 44,
+        height: 40,
         width: Dimensions.get('window').width,
         justifyContent: 'center',
+        borderRadius: 100,
+        paddingHorizontal: 8,
     },
 
     item: {
