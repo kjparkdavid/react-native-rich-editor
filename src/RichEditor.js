@@ -155,6 +155,7 @@ export default class RichTextEditor extends Component {
             onMessage,
             onCursorPosition,
             onAttributeChanged,
+            trackCursorPosition,
         } = that.props;
         try {
             const message = JSON.parse(event.nativeEvent.data);
@@ -219,6 +220,9 @@ export default class RichTextEditor extends Component {
                     break;
                 case messages.ATTRIBUTE_CHANGED:
                     onAttributeChanged?.(data);
+                    break;
+                case messages.CURSOR_POSITION:
+                    trackCursorPosition?.(data);
                     break;
                 default:
                     onMessage?.(message);

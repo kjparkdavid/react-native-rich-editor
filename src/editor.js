@@ -101,6 +101,8 @@ function createHTML(options = {}) {
             return "auto_" + (++ _randomID);
         }
         let prevAttributes = [];
+        let isProcessingSelectionChange = false;
+        let prevCursorPosition = 0;
 
         var body = document.body, docEle = document.documentElement;
         var defaultParagraphSeparatorString = 'defaultParagraphSeparator';
@@ -338,6 +340,64 @@ function createHTML(options = {}) {
                     }
                 }
             } 
+        }
+
+        function getCursorScrollPositionAndPostMessage() {
+            let selection = window.getSelection();
+            let range;
+        
+            // Check if there's a valid selection range
+            if (selection.rangeCount > 0) {
+                range = selection.getRangeAt(0);
+            } else {
+                // If no range, create a new collapsed range at the current caret position
+                range = document.createRange();
+                if (selection.anchorNode) {
+                    range.setStart(selection.anchorNode, selection.anchorOffset);
+                    range.setEnd(selection.anchorNode, selection.anchorOffset);
+                }
+            }
+        
+            if (range) {
+                // Create a temporary span element to insert at the range for measurement
+                const tempSpan = document.createElement("span");
+                tempSpan.textContent = "\u200B"; // Zero-width space character
+                range.insertNode(tempSpan);
+        
+                // Get the bounding rectangle of the temporary span
+                const rect = tempSpan.getBoundingClientRect();
+                const cursorOffsetTop = rect.top + window.scrollY; // Adding window.scrollY to account for scroll position
+        
+                // Clean up the temporary span element and restore the range
+                tempSpan.parentNode.removeChild(tempSpan);
+                
+                // Collapse the range back to the original position to keep the caret visible
+                range.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                
+                if(prevCursorPosition !== cursorOffsetTop) {
+                    prevCursorPosition = cursorOffsetTop;
+                    _postMessage({ type: 'CURSOR_POSITION', data: cursorOffsetTop });
+                }
+            }
+        }
+
+        function onSelectionChange() {
+            if (isProcessingSelectionChange) {
+                return;
+            }
+            isProcessingSelectionChange = true;
+        
+            try {
+                getAttributesAndPostMessage();
+                getCursorScrollPositionAndPostMessage();
+            } finally {
+                // Ensure the flag is reset after the operations
+                setTimeout(() => {
+                    isProcessingSelectionChange = false;
+                }, 0);
+            }
         }
 
         var _keyDown = false;
@@ -715,9 +775,7 @@ function createHTML(options = {}) {
                 paragraphStatus && formatParagraph(true);
             })
 
-            document.addEventListener('selectionchange', function(){
-                getAttributesAndPostMessage()
-            });
+            document.addEventListener('selectionchange', onSelectionChange);
 
             var message = function (event){
                 var msgData = JSON.parse(event.data), action = Actions[msgData.type];
