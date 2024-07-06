@@ -337,6 +337,9 @@ function createHTML(options = {}) {
                     if(hasAttributesChanged(attributes)) {
                         prevAttributes = [...attributes];
                         _postMessage({type: 'ATTRIBUTE_CHANGED', data: attributes});
+
+                        var html = Actions.content.getHtml();
+                        postAction({type: 'CONTENT_CHANGE', data: html});
                     }
                 }
             } 
@@ -371,11 +374,7 @@ function createHTML(options = {}) {
                 // Clean up the temporary span element and restore the range
                 tempSpan.parentNode.removeChild(tempSpan);
                 
-                // Collapse the range back to the original position to keep the caret visible
-                range.collapse(false);
-                selection.removeAllRanges();
-                selection.addRange(range);
-                
+
                 if(prevCursorPosition !== cursorOffsetTop) {
                     prevCursorPosition = cursorOffsetTop;
                     _postMessage({ type: 'CURSOR_POSITION', data: cursorOffsetTop });
@@ -391,7 +390,7 @@ function createHTML(options = {}) {
         
             try {
                 getAttributesAndPostMessage();
-                getCursorScrollPositionAndPostMessage();
+                // getCursorScrollPositionAndPostMessage();
             } finally {
                 // Ensure the flag is reset after the operations
                 setTimeout(() => {
