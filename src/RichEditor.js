@@ -238,7 +238,7 @@ export default class RichTextEditor extends Component {
     setWebHeight(height) {
         const {onHeightChange, useContainer, initialHeight} = this.props;
         if (height !== this.state.height) {
-            const maxHeight = Math.max(height, initialHeight);
+            const maxHeight = Math.max(height, initialHeight, this.state.height);
             if (!this.unmount && useContainer && maxHeight >= initialHeight) {
                 this.setState({height: maxHeight});
             }
