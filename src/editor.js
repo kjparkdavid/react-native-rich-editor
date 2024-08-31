@@ -373,7 +373,6 @@ function createHTML(options = {}) {
         
                 // Clean up the temporary span element and restore the range
                 tempSpan.parentNode.removeChild(tempSpan);
-                
 
                 if(prevCursorPosition !== cursorOffsetTop) {
                     prevCursorPosition = cursorOffsetTop;
@@ -390,7 +389,7 @@ function createHTML(options = {}) {
         
             try {
                 getAttributesAndPostMessage();
-                // getCursorScrollPositionAndPostMessage();
+                getCursorScrollPositionAndPostMessage();
             } finally {
                 // Ensure the flag is reset after the operations
                 setTimeout(() => {

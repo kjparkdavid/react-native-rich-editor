@@ -214,6 +214,7 @@ export default class RichTextEditor extends Component {
                 case messages.OFFSET_HEIGHT:
                     that.setWebHeight(data);
                     break;
+                // OFFSET_Y is not being called when the editor goes into newline without pressing enter
                 case messages.OFFSET_Y:
                     let offsetY = Number.parseInt(Number.parseInt(data) + that.layout.y || 0);
                     offsetY > 0 && onCursorPosition(offsetY);
@@ -221,6 +222,7 @@ export default class RichTextEditor extends Component {
                 case messages.ATTRIBUTE_CHANGED:
                     onAttributeChanged?.(data);
                     break;
+                // Newer way to track cursor position which tracks every cursor change
                 case messages.CURSOR_POSITION:
                     trackCursorPosition?.(data);
                     break;
