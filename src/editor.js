@@ -7,9 +7,48 @@ function getContentCSS() {
         table {width: 100% !important;}
         table td {width: inherit;}
         table span { font-size: 12px !important; }
-        .x-todo li {list-style:none;}
-        .x-todo-box {position: relative; left: -24px;}
-        .x-todo-box input{position: absolute;}
+        .x-todo li {
+            list-style: none;
+            position: relative;
+            padding-left: 24px;  /* Reduced padding */
+            line-height: 24px;   /* Match height of checkbox for vertical centering */
+            gap: 4px;
+        }
+        .x-todo-box {
+            position: absolute;
+            left: 0;            
+            top: 50%;          
+            transform: translateY(-50%);
+        }
+        .x-todo-box input[type="checkbox"] {
+            position: relative;
+            width: 20px;
+            height: 20px;
+            appearance: none;
+            -webkit-appearance: none;
+            border: 2px solid #651DFF;
+            border-radius: 50%;
+            outline: none;
+            cursor: pointer;
+            background-color: white;
+            margin: 0;
+            vertical-align: middle;
+        }
+        .x-todo-box input[type="checkbox"]:checked {
+            background-color: #651DFF;
+            position: relative;
+        }
+        .x-todo-box input[type="checkbox"]:checked:after {
+            content: '';
+            position: absolute;
+            left: 5px;     
+            top: 1px;
+            width: 4px; 
+            height: 10px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
         blockquote{border-left: 6px solid #ddd;padding: 5px 0 5px 10px;margin: 15px 0 15px 15px;}
         hr{display: block;height: 0; border: 0;border-top: 1px solid #ccc; margin: 15px 0; padding: 0;}
         pre{padding: 10px 5px 10px 10px;margin: 15px 0;display: block;line-height: 18px;background: #F0F0F0;border-radius: 6px;font-size: 13px; font-family: 'monaco', 'Consolas', "Liberation Mono", Courier, monospace; word-break: break-all; word-wrap: break-word;overflow-x: auto;}
@@ -179,35 +218,53 @@ function createHTML(options = {}) {
             return getNodeByClass(node, 'x-todo');
         }
 
-        function execCheckboxList (node, html){
-            var html = createCheckbox(node ? node.innerHTML: '');
-            var HTML = "<ol class='x-todo'><li>"+ html +"</li></ol>"
-            var foNode;
-            if (node){
-                node.innerHTML = HTML;
-                foNode = node.firstChild;
-            } else {
-                exec("insertHTML", HTML);
+        function execCheckboxList(node, html) {
+            var html = createCheckbox(node ? node.innerHTML : '');
+            
+            // If editor is empty, create first list directly
+            if (!editor.content.textContent.trim()) {
+                var HTML = "<ol class='x-todo'><li>" + html + "</li></ol>";
+                editor.content.innerHTML = HTML;  // Set innerHTML directly
+                setCollapse(editor.content.firstChild.firstChild);  // Set cursor in first li
+                return;
             }
-
-            foNode && setTimeout(function (){
-                setCollapse(foNode);
-            });
+            
+            // Rest of the existing logic for non-empty editor
+            const existingList = getNodeByClass(window.getSelection().anchorNode, 'x-todo');
+            if (existingList) {
+                const newLi = createElement('li');
+                newLi.innerHTML = html;
+                const currentLi = getNodeByName(window.getSelection().anchorNode, 'LI');
+                if (currentLi) {
+                    existingList.insertBefore(newLi, currentLi.nextSibling);
+                    setCollapse(newLi);
+                }
+            } else {
+                var HTML = "<ol class='x-todo'><li>" + html + "</li></ol>";
+                if (node) {
+                    node.innerHTML = HTML;
+                    setCollapse(node.firstChild);
+                } else {
+                    exec("insertHTML", HTML);
+                }
+            }
         }
 
         var _checkboxFlag = 0; // 1 = add checkbox; 2 = cancel checkbox
         function cancelCheckboxList(box){
             _checkboxFlag = 2;
-            exec("insertOrderedList");
+            exec("execCheckboxList");
             setCollapse(box);
         }
 
-        function createCheckbox(end){
+        function createCheckbox(end) {
             var html = '<span contenteditable="false" class="x-todo-box"><input type="checkbox"></span>';
-            if (end && typeof end !== 'boolean'){
+            if (end && typeof end !== 'boolean') {
                 html += end;
-            } else if(end !== false){
-                html += "<br/>"
+            }
+            // Only add <br/> if no content and not explicitly set to false
+            if (!end && end !== false) {
+                html += "\u200B"; // Add zero-width space instead of <br/>
             }
             return html;
         }
@@ -398,30 +455,69 @@ function createHTML(options = {}) {
             }
         }
 
+        function handleCheckboxDelete(node) {
+            if (checkboxNode(node)) {
+                const list = getNodeByClass(node, 'x-todo');
+                if (list) {
+                    const p = createElement(editor.paragraphSeparator);
+                    list.parentNode.replaceChild(p, list);
+                    setCollapse(p);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function toggleCheckboxList(checked) {
+            const node = window.getSelection().anchorNode;
+            const checkboxNode = getNodeByClass(node, 'x-todo');
+            
+            if (checkboxNode) {
+                // Exit checkbox mode
+                if (checkboxNode.textContent.trim() === '') {
+                    handleCheckboxDelete(checkboxNode);
+                    _checkboxFlag = 0;
+                }
+            } else {
+                // Enter checkbox mode
+                _checkboxFlag = 1;
+                execCheckboxList(null);
+            }
+        }
+
         var _keyDown = false;
         function handleChange (event){
             var node = anchorNode;
             Actions.UPDATE_HEIGHT();
             Actions.UPDATE_OFFSET_Y();
-            if (_keyDown){
-                if(_checkboxFlag === 1 && checkboxNode(node)){
+            
+            if (_keyDown) {
+                // Handle checkbox deletion
+                if (checkboxNode(node) && node.textContent.trim() === '') {
+                    handleBackspaceInCheckbox({ target: node });
+                    _checkboxFlag = 0;
+                    return;
+                }
+                // Handle checkbox creation
+                if (_checkboxFlag === 1 && checkboxNode(node)) {
                     _checkboxFlag = 0;
                     var sib = node.previousSibling;
-                    if (!sib || sib.childNodes.length > 1){
+                    if (!sib || sib.childNodes.length > 1) {
                         insertCheckbox(node);
                     }
-                } else if(_checkboxFlag === 2){
-                    _checkboxFlag = 0;
-                    var sp = createElement(editor.paragraphSeparator);
-                    var br = createElement('br');
-                    sp.appendChild(br);
-                    setTimeout(function (){
-                        if (!node.classList.contains("x-todo-box")){
-                            node = node.parentNode.previousSibling;
-                        }
-                        node.parentNode.replaceChild(sp, node);
-                        setCollapse(sp);
-                    });
+                } 
+                // Handle checkbox exit
+                else if (checkboxNode(node) && node.textContent.trim() === '') {
+                    if (enterStatus === 2) {
+                        handleCheckboxDelete(node);
+                        _checkboxFlag = 0;
+                        enterStatus = 0;
+                    }
+                }
+                // Handle new checkbox on enter
+                else if (checkboxNode(node) && enterStatus === 1) {
+                    enterStatus = 0;
+                    execCheckboxList(null);
                 }
             }
         }
@@ -524,23 +620,27 @@ function createHTML(options = {}) {
                 }
             },
             checkboxList: {
-                state: function(){return checkboxNode(window.getSelection().anchorNode)},
+                state: function() {
+                    const node = window.getSelection().anchorNode;
+                    return !!getNodeByClass(node, 'x-todo');
+                },
                 result: function() {
-                    if (queryCommandState('insertOrderedList')) return;
-                    var pNode;
-                    if (anchorNode){
-                        pNode = anchorNode.parentNode;
-                        if (anchorNode === editor.content) pNode = null;
-                    }
-
-                    if (anchorNode === editor.content || queryCommandValue(formatBlock) === ''){
-                        formatParagraph();
-                    }
-                    var box = checkboxNode(anchorNode);
-                    if (!!box){
-                        cancelCheckboxList(box.parentNode);
+                    const node = window.getSelection().anchorNode;
+                    const listNode = getNodeByClass(node, 'x-todo');
+                    
+                    if (listNode) {
+                        // If we're already in a checkbox list and it's empty, convert to normal paragraph
+                        if (listNode.textContent.trim() === '') {
+                            const p = createElement('p');
+                            listNode.parentNode.replaceChild(p, listNode);
+                            setCollapse(p);
+                        } else {
+                            // Otherwise, just toggle the checkbox
+                            execCheckboxList();
+                        }
                     } else {
-                        !queryCommandState('insertOrderedList') && execCheckboxList(pNode);
+                        // Create new checkbox list
+                        execCheckboxList();
                     }
                 }
             },
@@ -690,10 +790,87 @@ function createHTML(options = {}) {
                 if (event.keyCode === 8) handleSelecting (event);
                 ${keyUpListener} && postKeyAction(event, "CONTENT_KEYUP")
             }
+            function handleEnterInCheckbox(event) {
+                const node = window.getSelection().anchorNode;
+                const listNode = getNodeByClass(node, 'x-todo');
+
+                if (listNode) {
+                    const checkboxSpan = getNodeByClass(node, 'x-todo-box');
+                    const textContent = node.textContent.replace(/\u200B/g, '').trim();
+
+                    if (textContent === '') {
+                        console.log('checkbox content is empty');
+                        event.preventDefault();
+                        
+                        // Create a new div for the next line
+                        const newDiv = createElement(editor.paragraphSeparator);
+                        newDiv.innerHTML = '<br>';  // Add br to make div visible
+                        
+                        // Get the parent list to know where to insert the div
+                        const list = getNodeByClass(node, 'x-todo');
+                        
+                        // Insert the new div after the list
+                        if (list && list.parentNode) {
+                            list.parentNode.insertBefore(newDiv, list.nextSibling);
+                        }
+                        
+                        // Remove the empty checkbox
+                        handleBackspaceInCheckbox(event);
+                        
+                        // Set cursor to the new div
+                        setCollapse(newDiv);
+                        
+                        enterStatus = 0;
+                        return true;
+                    } else {
+                        // Create new checkbox item
+                        event.preventDefault();
+                        execCheckboxList(null);
+                        enterStatus = 0;
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            function handleBackspaceInCheckbox(event) {
+                const node = window.getSelection().anchorNode;
+                const listItem = getNodeByName(node, 'LI'); // Get the current LI element
+                const list = getNodeByClass(node, 'x-todo'); // Get the parent list
+                
+                if (list) {
+                    if (listItem) {
+                        if (list.children.length > 1) {
+                            // Get the previous list item before removing current one
+                            const prevListItem = listItem.previousElementSibling || listItem.nextElementSibling;
+                            
+                            // Remove current list item
+                            list.removeChild(listItem);
+                            
+                            // Set cursor to end of previous list item's content
+                            if (prevListItem) {
+                                setCollapse(prevListItem);
+                            }
+                        } else {
+                            // If this is the last item, replace the whole list with a paragraph
+                            const p = createElement(editor.paragraphSeparator);
+                            list.parentNode.replaceChild(p, list);
+                            setCollapse(p);
+                        }
+                        _checkboxFlag = 0;
+                        return true;
+                    }
+                }
+                return false;
+            }
+
             function handleKeydown(event){
                 _keyDown = true;
-                 handleState();
+                handleState();
                 if (event.key === 'Enter'){
+                    if (handleEnterInCheckbox(event)) {
+                        return;
+                    }
                     enterStatus = 1; // set enter true
                     var box;
                     var block = queryCommandValue(formatBlock);
@@ -720,6 +897,40 @@ function createHTML(options = {}) {
                                 setCollapse(br);
                             });
                         }
+                    }
+                } else if (event.key === 'Backspace') {
+                    // Get the current selection
+                    const selection = window.getSelection();
+                    const node = selection.anchorNode;
+                    
+                    // Check if we're in a checkbox item
+                    if (checkboxNode(node)) {
+                        const checkboxSpan = getNodeByClass(node, 'x-todo-box');
+                        const textContent = node.textContent.replace(/\u200B/g, '').trim();
+                        
+                        // Create a range from the start of the node to the cursor
+                        const range = document.createRange();
+                        range.setStart(node, 0);
+                        range.setEnd(selection.anchorNode, selection.anchorOffset);
+
+                        // Get the text before cursor, excluding the checkbox
+                        const textBeforeCursor = range.toString().replace(/\u200B/g, '').trim();
+                        
+                        // If there's no text before cursor (except checkbox), we're right after checkbox
+                        const isAfterCheckbox = !textBeforeCursor;
+                        
+                        if (isAfterCheckbox) {
+                            if (textContent !== '') {
+                                // Prevent deletion if there's text content
+                                event.preventDefault();
+                                return;
+                            } else {
+                                // Delete empty checkbox immediately
+                                event.preventDefault();
+                                handleBackspaceInCheckbox(event);
+                                return;
+                            }
+                        } 
                     }
                 }
                 ${keyDownListener} && postKeyAction(event, "CONTENT_KEYDOWN");
@@ -770,7 +981,14 @@ function createHTML(options = {}) {
             })
             addEventListener(content, 'compositionend', function (event){
                 compositionStatus = 0;
-                paragraphStatus && formatParagraph(true);
+                
+                // Only format paragraph if we're not in a checkbox list
+                const node = window.getSelection().anchorNode;
+                const inCheckbox = checkboxNode(node);
+                
+                if (paragraphStatus && !inCheckbox) {
+                    formatParagraph(true);
+                }
             })
 
             document.addEventListener('selectionchange', onSelectionChange);
