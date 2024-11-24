@@ -799,7 +799,6 @@ function createHTML(options = {}) {
                     const textContent = node.textContent.replace(/\u200B/g, '').trim();
 
                     if (textContent === '') {
-                        console.log('checkbox content is empty');
                         event.preventDefault();
                         
                         // Create a new div for the next line
