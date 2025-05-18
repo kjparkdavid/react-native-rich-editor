@@ -953,6 +953,17 @@ function createHTML(options = {}) {
                     if (ele.checked) ele.setAttribute('checked', '');
                     else ele.removeAttribute('checked');
                 }
+                // Handle image clicks for fullscreen
+                if (ele.nodeName === 'IMG') {
+                    postAction({
+                        type: 'IMAGE_CLICKED', 
+                        data: {
+                            src: ele.getAttribute('src'),
+                            width: ele.naturalWidth,
+                            height: ele.naturalHeight
+                        }
+                    });
+                }
                 postAction({type: 'CONTENT_CLICK'});
             }
             addEventListener(content, 'touchcancel', handleSelecting);

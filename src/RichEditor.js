@@ -156,6 +156,7 @@ export default class RichTextEditor extends Component {
             onCursorPosition,
             onAttributeChanged,
             trackCursorPosition,
+            onImageClicked,
         } = that.props;
         try {
             const message = JSON.parse(event.nativeEvent.data);
@@ -225,6 +226,9 @@ export default class RichTextEditor extends Component {
                 // Newer way to track cursor position which tracks every cursor change
                 case messages.CURSOR_POSITION:
                     trackCursorPosition?.(data);
+                    break;
+                case messages.IMAGE_CLICKED:
+                    onImageClicked?.(data);
                     break;
                 default:
                     onMessage?.(message);

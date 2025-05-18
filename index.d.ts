@@ -54,7 +54,7 @@ export interface RichEditorProps extends WebViewProps {
      * String value to set return key type
      * See: https://reactnative.dev/docs/textinput#returnkeytype
      */
-    enterKeyHint?: 'done' | 'go' | 'next' | 'search' | 'send'
+    enterKeyHint?: 'done' | 'go' | 'next' | 'search' | 'send';
 
     /**
      * Boolean value to enable paste as plain text. The default value is false.
@@ -72,72 +72,87 @@ export interface RichEditorProps extends WebViewProps {
     editorInitializedCallback?: () => void;
 
     /**
-     * Callback after editor data modification
+     * Callback for content height change
      */
-    onChange?: (text: string) => void;
+    onHeightChange?: (height: number) => void;
 
     /**
-     * Callback when the user pastes some content
-     * @param {string} data pastes values
+     * Callback after selection change
      */
-    onPaste?: (data: string) => void;
+    onChange?: (data: string) => void;
 
     /**
-     * Callback when the user keyup some content
+     * Callback to change cursor position
      */
-    onKeyUp?: ({keyCode: number, key: string}) => void;
+    onCursorPosition?: (offsetY: number) => void;
 
     /**
-     * Callback when the user keydown some content
-     */
-    onKeyDown?: ({keyCode: number, key: string}) => void;
-
-    /**
-     * Callback input chat
-     * Android and iOS inputType are not the same
-     */
-    onInput?: ({data: string, inputType: string}) => void;
-
-    /**
-     * Callback when the editor focus some content
+     * Callback after editor focus
      */
     onFocus?: () => void;
 
     /**
-     * Callback when the editor blur some content
+     * Callback after editor blur
      */
     onBlur?: () => void;
 
     /**
-     * Callback Enter the position of the cursor
+     * Callback when the editor receives a click event
      */
-    onCursorPosition?: (offsetY: number)=> void;
+    onClick?: () => void;
 
     /**
-     * Callback after height change
+     * Callback when the editor receives an attribute change
      */
-    onHeightChange?: (height: number) => void;
-
-    onMessage?: (message: {type: string; id: string; data?: any}) => void;
+    onAttributeChanged?: (data: any) => void;
 
     /**
-     * When first gaining focus, the cursor moves to the end of the text
-     * Default is true
+     * Callback when cursor position changes
      */
-    firstFocusEnd?: boolean;
+    trackCursorPosition?: (data: number) => void;
 
     /**
-     * Styling for container or for Rich Editor more dark or light settings
+     * Callback when an image is clicked in the editor
+     */
+    onImageClicked?: (data: {src: string; width: number; height: number}) => void;
+
+    /**
+     * Styling for the editable content
      */
     editorStyle?: {
-        backgroundColor?: string; // editor background color
-        color?: string; // editor text color
-        caretColor?: string; // cursor/selection color
-        placeholderColor?: string; // editor placeholder text color
-        contentCSSText?: string; // editor content css text
-        initialCSSText?: string; // editor global css initial text
-        cssText?: string; // editor global css text
+        backgroundColor?: string;
+        color?: string;
+        caretColor?: string;
+        placeholderColor?: string;
+        initialCSSText?: string;
+        cssText?: string;
+        contentCSSText?: string;
     };
+
+    /**
+     * Listener for paste event
+     */
+    onPaste?: (data: string) => void;
+
+    /**
+     * Listener for keyup event
+     */
+    onKeyUp?: (data: any) => void;
+
+    /**
+     * Listener for keydown event
+     */
+    onKeyDown?: (data: any) => void;
+
+    /**
+     * Listener for editor input
+     */
+    onInput?: (data: any) => void;
+
+    /**
+     * Listener for message event
+     */
+    onMessage?: (message: any) => void;
 }
 
 export type SelectionChangeListener = (items: string[]) => void;
@@ -202,13 +217,13 @@ export class RichEditor extends React.Component<RichEditorProps> {
      * The background color of the selected text
      * @param color
      */
-    setHiliteColor: (color: string)=> void;
+    setHiliteColor: (color: string) => void;
 
     /**
      * The color of the selected text
      * @param color
      */
-    setForeColor: (color: string)=> void;
+    setForeColor: (color: string) => void;
 
     /**
      * $ = document.querySelector
