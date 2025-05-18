@@ -10,13 +10,13 @@ function getContentCSS() {
         .x-todo li {
             list-style: none;
             position: relative;
-            padding-left: 24px;  /* Reduced padding */
+            padding-left: 8px;  /* Reduced padding from 24px to 16px */
             line-height: 24px;   /* Match height of checkbox for vertical centering */
             gap: 4px;
         }
         .x-todo-box {
             position: absolute;
-            left: 0;            
+            left: -24px;            
             top: 50%;          
             transform: translateY(-50%);
         }
