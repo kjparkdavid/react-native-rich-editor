@@ -1,7 +1,7 @@
 import React, {Component} from 'react';
 import {WebView} from 'react-native-webview';
 import {actions, messages} from './const';
-import {Keyboard, Platform, StyleSheet, TextInput, View} from 'react-native';
+import {Keyboard, Platform, StyleSheet, TextInput, View, AppState} from 'react-native';
 import {createHTML} from './editor';
 
 const PlatformIOS = Platform.OS === 'ios';
@@ -90,13 +90,22 @@ export default class RichTextEditor extends Component {
             },
             keyboardHeight: 0,
             height: initialHeight,
+            webViewKey: Date.now(),
         };
         that.focusListeners = [];
         that.loadTimeout = null;
+        that.appStateSubscription = null;
+        that.backgroundTime = null;
+        that.lastKnownContent = null; // Store content before WebView remount
+        that.contentPreservationTimeout = null; // For debounced content saving
     }
 
     componentDidMount() {
         this.unmount = false;
+
+        // Handle app state changes for iOS WebView restoration
+        this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
+
         if (PlatformIOS) {
             this.keyboardEventListeners = [
                 Keyboard.addListener('keyboardWillShow', this._onKeyboardWillShow),
@@ -112,6 +121,14 @@ export default class RichTextEditor extends Component {
 
     componentWillUnmount() {
         this.unmount = true;
+        if (this.appStateSubscription) {
+            this.appStateSubscription.remove();
+            this.appStateSubscription = null;
+        }
+        if (this.contentPreservationTimeout) {
+            clearTimeout(this.contentPreservationTimeout);
+            this.contentPreservationTimeout = null;
+        }
         this.keyboardEventListeners.forEach(eventListener => eventListener.remove());
     }
 
@@ -132,6 +149,51 @@ export default class RichTextEditor extends Component {
         this._keyOpen = false;
         // this.setState({keyboardHeight: 0});
     }
+
+    handleAppStateChange = nextAppState => {
+        if (this.unmount) return;
+
+        if (nextAppState === 'background') {
+            // Track when app goes to background and save current content
+            this.backgroundTime = Date.now();
+            // Immediately preserve current content before background (bypass debounce)
+            if (this.contentPreservationTimeout) {
+                clearTimeout(this.contentPreservationTimeout);
+                this.contentPreservationTimeout = null;
+            }
+            this.preserveContent();
+        } else if (nextAppState === 'active') {
+            // Check if app was in background for more than 30 seconds
+            const timeInBackground = this.backgroundTime ? Date.now() - this.backgroundTime : 0;
+
+            if (timeInBackground > 30000) {
+                // 30 seconds
+                // Force WebView remount by changing key
+                this.setState({
+                    webViewKey: Date.now(),
+                });
+            }
+            this.backgroundTime = null;
+        }
+    };
+
+    preserveContent = () => {
+        // Try to get current content before WebView gets terminated
+        if (this.webviewBridge && !this.unmount) {
+            try {
+                this.sendAction(actions.content, 'postHtml');
+            } catch (e) {
+                console.warn('Failed to preserve content:', e);
+            }
+        }
+    };
+
+    // Public method to manually preserve content
+    preserveCurrentContent = content => {
+        if (content) {
+            this.lastKnownContent = content;
+        }
+    };
 
     /*setEditorAvailableHeightBasedOnKeyboardHeight(keyboardHeight) {
         const {top = 0, bottom = 0} = this.props.contentInset;
@@ -176,6 +238,8 @@ export default class RichTextEditor extends Component {
                             that.pendingContentHtml = undefined;
                         }
                     }
+                    // Store content for potential WebView restoration
+                    that.lastKnownContent = message.data;
                     break;
                 case messages.LOG:
                     console.log('FROM EDIT:', ...data);
@@ -200,6 +264,8 @@ export default class RichTextEditor extends Component {
                     break;
                 case messages.CONTENT_CHANGE:
                     onChange?.(data);
+                    // Debounced content preservation for better performance
+                    that.debouncedPreserveContent(data);
                     break;
                 case messages.CONTENT_PASTED:
                     onPaste?.(data);
@@ -285,11 +351,12 @@ export default class RichTextEditor extends Component {
     renderWebView() {
         let that = this;
         const {html, editorStyle, useContainer, style, ...rest} = that.props;
-        const {html: viewHTML} = that.state;
+        const {html: viewHTML, webViewKey} = that.state;
         const DISABLE_TEXT_SELECT = "document.body.style.userSelect = 'none'"; // For not selecting any text when user is interacting with a sticker
         return (
             <>
                 <WebView
+                    key={webViewKey}
                     useWebKit={true}
                     scrollEnabled={false}
                     hideKeyboardAccessoryView={true}
@@ -306,9 +373,9 @@ export default class RichTextEditor extends Component {
                     javaScriptEnabled={true}
                     source={viewHTML}
                     onLoad={that.init}
+                    onRenderProcessGone={that.handleRenderProcessGone}
                     injectedJavaScript={DISABLE_TEXT_SELECT}
                     // Network-independent configurations
-                    cacheEnabled={false}
                     startInLoadingState={false}
                     mixedContentMode={'compatibility'}
                     allowsInlineMediaPlayback={true}
@@ -360,6 +427,8 @@ export default class RichTextEditor extends Component {
 
     setContentHTML(html) {
         this.sendAction(actions.content, 'setHtml', html);
+        // Also preserve this content for potential restoration
+        this.lastKnownContent = html;
     }
 
     setPlaceholder(placeholder) {
@@ -470,7 +539,12 @@ export default class RichTextEditor extends Component {
         let that = this;
         const {initialFocus, initialContentHTML, placeholder, editorInitializedCallback, disabled} = that.props;
 
-        initialContentHTML && that.setContentHTML(initialContentHTML);
+        // Restore content if WebView was remounted
+        const contentToRestore = that.lastKnownContent || initialContentHTML;
+        if (contentToRestore) {
+            that.setContentHTML(contentToRestore);
+        }
+
         placeholder && that.setPlaceholder(placeholder);
         that.setDisable(disabled);
         editorInitializedCallback();
@@ -480,6 +554,18 @@ export default class RichTextEditor extends Component {
         // no visible ?
         that.sendAction(actions.init);
     }
+
+    handleRenderProcessGone = syntheticEvent => {
+        const {nativeEvent} = syntheticEvent;
+        console.warn('WebView render process terminated:', nativeEvent);
+
+        if (!this.unmount) {
+            // Force WebView remount when render process is gone
+            this.setState({
+                webViewKey: Date.now(),
+            });
+        }
+    };
 
     /**
      * @deprecated please use onChange
@@ -498,6 +584,21 @@ export default class RichTextEditor extends Component {
             }, 5000);
         });
     }
+
+    debouncedPreserveContent = content => {
+        // Clear existing timeout
+        if (this.contentPreservationTimeout) {
+            clearTimeout(this.contentPreservationTimeout);
+        }
+
+        // Set new timeout to save content after user stops typing for 500ms
+        this.contentPreservationTimeout = setTimeout(() => {
+            if (content && !this.unmount) {
+                this.lastKnownContent = content;
+            }
+            this.contentPreservationTimeout = null;
+        }, 500);
+    };
 }
 
 const styles = StyleSheet.create({
