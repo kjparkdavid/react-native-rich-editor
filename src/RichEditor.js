@@ -92,6 +92,7 @@ export default class RichTextEditor extends Component {
             height: initialHeight,
         };
         that.focusListeners = [];
+        that.loadTimeout = null;
     }
 
     componentDidMount() {
@@ -306,6 +307,14 @@ export default class RichTextEditor extends Component {
                     source={viewHTML}
                     onLoad={that.init}
                     injectedJavaScript={DISABLE_TEXT_SELECT}
+                    // Network-independent configurations
+                    cacheEnabled={false}
+                    startInLoadingState={false}
+                    mixedContentMode={'compatibility'}
+                    allowsInlineMediaPlayback={true}
+                    mediaPlaybackRequiresUserAction={false}
+                    // Ensure offline functionality
+                    onShouldStartLoadWithRequest={() => true}
                 />
                 {Platform.OS === 'android' && <TextInput ref={ref => (that._input = ref)} style={styles._input} />}
             </>
@@ -460,6 +469,7 @@ export default class RichTextEditor extends Component {
     init() {
         let that = this;
         const {initialFocus, initialContentHTML, placeholder, editorInitializedCallback, disabled} = that.props;
+
         initialContentHTML && that.setContentHTML(initialContentHTML);
         placeholder && that.setPlaceholder(placeholder);
         that.setDisable(disabled);

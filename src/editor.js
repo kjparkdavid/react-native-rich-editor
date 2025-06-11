@@ -51,7 +51,7 @@ function getContentCSS() {
         }
         blockquote{border-left: 6px solid #ddd;padding: 5px 0 5px 10px;margin: 15px 0 15px 15px;}
         hr{display: block;height: 0; border: 0;border-top: 1px solid #ccc; margin: 15px 0; padding: 0;}
-        pre{padding: 10px 5px 10px 10px;margin: 15px 0;display: block;line-height: 18px;background: #F0F0F0;border-radius: 6px;font-size: 13px; font-family: 'monaco', 'Consolas', "Liberation Mono", Courier, monospace; word-break: break-all; word-wrap: break-word;overflow-x: auto;}
+        pre{padding: 10px 5px 10px 10px;margin: 15px 0;display: block;line-height: 18px;background: #F0F0F0;border-radius: 6px;font-size: 13px; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace; font-display: optional; word-break: break-all; word-wrap: break-word;overflow-x: auto;}
         pre code {display: block;font-size: inherit;white-space: pre-wrap;color: inherit;}
     </style>
     `;
@@ -87,15 +87,16 @@ function createHTML(options = {}) {
 <head>
     <title>RN Rich Text Editor</title>
     <meta name="viewport" content="user-scalable=1.0,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none';">
     <style>
         ${initialCSSText}
         * {outline: 0px solid transparent;-webkit-tap-highlight-color: rgba(0,0,0,0);-webkit-touch-callout: none;box-sizing: border-box;}
-        html, body { margin: 0; padding: 0;font-family: Arial, Helvetica, sans-serif; font-size:1em; height: 100%}
+        html, body { margin: 0; padding: 0;font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, Helvetica, sans-serif; font-size:1em; height: 100%; font-display: optional;}
         body { overflow-y: hidden; -webkit-overflow-scrolling: touch;background-color: ${backgroundColor};caret-color: ${caretColor};}
-        .content {font-family: Arial, Helvetica, sans-serif;color: ${color}; width: 100%;${
+        .content {font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, Helvetica, sans-serif;color: ${color}; width: 100%;${
         !useContainer ? 'height:100%;' : ''
     }-webkit-overflow-scrolling: touch;padding-left: 0;padding-right: 0;}
-        .pell { height: 100%;} .pell-content { outline: 0; overflow-y: auto;padding: 10px;height: 100%;${contentCSSText}}
+        .pell { height: 100%;} .pell-content { outline: 0; overflow-y: auto;padding: 10px;height: 100%; transition: font-family 0.1s ease-out;${contentCSSText}}
         .image-options{
             display:none; 
             position:absolute; 
@@ -373,7 +374,9 @@ function createHTML(options = {}) {
               let sizeInPixels = convertSizeToPixel(value);
               styleMap['font-size'] = sizeInPixels;
             } else if (attribute === 'face') {
-              styleMap['font-family'] = value;
+              // Add system font fallbacks to custom fonts to prevent snapping
+              const systemFallbacks = ', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, Helvetica, sans-serif';
+              styleMap['font-family'] = value + systemFallbacks;
             }
           
             newStyle = Object.entries(styleMap).map(([key, val]) => key + ': ' + val).join('; ') + ';';
