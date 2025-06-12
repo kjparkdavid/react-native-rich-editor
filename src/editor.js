@@ -87,13 +87,13 @@ function createHTML(options = {}) {
 <head>
     <title>RN Rich Text Editor</title>
     <meta name="viewport" content="user-scalable=1.0,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'none';">
     <style>
         ${initialCSSText}
         * {outline: 0px solid transparent;-webkit-tap-highlight-color: rgba(0,0,0,0);-webkit-touch-callout: none;box-sizing: border-box;}
-        html, body { margin: 0; padding: 0;font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, Helvetica, sans-serif; font-size:1em; height: 100%; font-display: optional;}
+        html, body { margin: 0; padding: 0;font-family: Roboto, "Segoe UI", system-ui, Arial, sans-serif; font-size:1em; height: 100%; font-display: optional;}
         body { overflow-y: hidden; -webkit-overflow-scrolling: touch;background-color: ${backgroundColor};caret-color: ${caretColor};}
-        .content {font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, Helvetica, sans-serif;color: ${color}; width: 100%;${
+        .content {font-family: Roboto, "Segoe UI", system-ui, Arial, sans-serif;color: ${color}; width: 100%;${
         !useContainer ? 'height:100%;' : ''
     }-webkit-overflow-scrolling: touch;padding-left: 0;padding-right: 0;}
         .pell { height: 100%;} .pell-content { outline: 0; overflow-y: auto;padding: 10px;height: 100%; transition: font-family 0.1s ease-out;${contentCSSText}}
@@ -374,12 +374,20 @@ function createHTML(options = {}) {
               let sizeInPixels = convertSizeToPixel(value);
               styleMap['font-size'] = sizeInPixels;
             } else if (attribute === 'face') {
-              // Add system font fallbacks to custom fonts to prevent snapping
-              const systemFallbacks = ', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, Helvetica, sans-serif';
-              styleMap['font-family'] = value + systemFallbacks;
+              // Properly quote font names that contain spaces
+              const fontName = value.includes(' ') ? '"' + value + '"' : value;
+              // Add system fallbacks after the custom font
+              const systemFallbacks = ', Roboto, "Segoe UI", system-ui, Arial, sans-serif';
+              styleMap['font-family'] = fontName + systemFallbacks;
+              
+              // Force a re-render to ensure the font is applied
+              targetElement.style.fontFamily = '';
+              setTimeout(() => {
+                targetElement.style.fontFamily = fontName + systemFallbacks;
+              }, 0);
             }
           
-            newStyle = Object.entries(styleMap).map(([key, val]) => key + ': ' + val).join('; ') + ';';
+            let newStyle = Object.entries(styleMap).map(([key, val]) => key + ': ' + val).join('; ') + ';';
             targetElement.setAttribute('style', newStyle.trim());
           }
 
