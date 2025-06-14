@@ -96,7 +96,7 @@ function createHTML(options = {}) {
         .content {font-family: Roboto, "Segoe UI", system-ui, Arial, sans-serif;color: ${color}; width: 100%;${
         !useContainer ? 'height:100%;' : ''
     }-webkit-overflow-scrolling: touch;padding-left: 0;padding-right: 0;}
-        .pell { height: 100%;} .pell-content { outline: 0; overflow-y: auto;padding: 10px;height: 100%; transition: font-family 0.1s ease-out;${contentCSSText}}
+        .pell { height: 100%;} .pell-content { outline: 0; overflow-y: auto;padding: 10px 10px 80px 10px;height: 100%; transition: font-family 0.1s ease-out;${contentCSSText}}
         .image-options{
             display:none; 
             position:absolute; 
