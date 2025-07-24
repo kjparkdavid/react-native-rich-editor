@@ -220,6 +220,7 @@ export default class RichTextEditor extends Component {
             onAttributeChanged,
             trackCursorPosition,
             onImageClicked,
+            onWebViewDeselectStickers,
         } = that.props;
         try {
             const message = JSON.parse(event.nativeEvent.data);
@@ -261,6 +262,9 @@ export default class RichTextEditor extends Component {
                     break;
                 case messages.CONTENT_CLICK:
                     onClick?.();
+                    break;
+                case messages.WEBVIEW_DESELECT_STICKERS:
+                    onWebViewDeselectStickers?.();
                     break;
                 case messages.CONTENT_CHANGE:
                     onChange?.(data);

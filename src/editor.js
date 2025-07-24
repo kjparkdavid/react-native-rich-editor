@@ -975,6 +975,24 @@ function createHTML(options = {}) {
                         }
                     });
                 }
+                
+                // Send message to deselect stickers for general WebView content clicks
+                // This replaces the problematic onStartShouldSetResponder approach
+                var shouldDeselectStickers = true;
+                
+                // Check if click is on special elements that shouldn't trigger deselection
+                if (ele.classList && (
+                    ele.classList.contains('sticker') ||
+                    ele.classList.contains('sticker-control') ||
+                    ele.hasAttribute('data-preserve-selection')
+                )) {
+                    shouldDeselectStickers = false;
+                }
+                
+                if (shouldDeselectStickers) {
+                    postAction({type: 'WEBVIEW_DESELECT_STICKERS'});
+                }
+                
                 postAction({type: 'CONTENT_CLICK'});
             }
             addEventListener(content, 'touchcancel', handleSelecting);
