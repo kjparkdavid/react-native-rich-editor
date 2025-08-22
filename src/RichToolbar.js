@@ -242,6 +242,16 @@ export default class RichToolbar extends Component {
     render() {
         const {style, disabled, children, flatContainerStyle} = this.props;
         const vStyle = [styles.barContainer, style, disabled && this._getButtonDisabledStyle()];
+
+        // Apply border radius to the FlatList content container
+        const contentContainerStyleWithRadius = [
+            {
+                borderRadius: 100,
+                paddingHorizontal: 8,
+            },
+            flatContainerStyle,
+        ];
+
         return (
             <View style={vStyle}>
                 <FlatList
@@ -252,7 +262,7 @@ export default class RichToolbar extends Component {
                     alwaysBounceHorizontal={false}
                     showsHorizontalScrollIndicator={false}
                     renderItem={({item}) => this._renderAction(item.action, item.selected)}
-                    contentContainerStyle={flatContainerStyle}
+                    contentContainerStyle={contentContainerStyleWithRadius}
                 />
                 {children}
             </View>
@@ -265,8 +275,9 @@ const styles = StyleSheet.create({
         height: 40,
         width: Dimensions.get('window').width,
         justifyContent: 'center',
-        borderRadius: 100,
-        paddingHorizontal: 8,
+        borderTopLeftRadius: 20,
+        borderBottomLeftRadius: 20,
+        overflow: 'hidden',
     },
 
     item: {
