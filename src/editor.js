@@ -148,6 +148,9 @@ function createHTML(options = {}) {
         var defaultParagraphSeparatorString = 'defaultParagraphSeparator';
         var formatBlock = 'formatBlock';
         var editor = null, editorFoucs = false, o_height = 0, compositionStatus = 0, paragraphStatus = 0, enterStatus = 0;
+        var isComposingOnIOS = false; // Track iOS-specific composition state
+        var compositionEndTimeout = null; // Debounce composition end events
+        var compositionSafetyTimeout = null; // Safety timeout to reset composition state
         function addEventListener(parent, type, listener) {
             return parent.addEventListener(type, listener);
         };
@@ -737,6 +740,8 @@ function createHTML(options = {}) {
             content.autocomplete = 'off';
             content.className = "pell-content";
             content.oninput = function (_ref) {
+                // Normal input processing
+                
                 // var firstChild = _ref.target.firstChild;
                 if ((anchorNode === void 0 || anchorNode === content) && queryCommandValue(formatBlock) === ''){
                     if ( !compositionStatus ){
@@ -752,6 +757,7 @@ function createHTML(options = {}) {
                 }
                 saveSelection();
                 handleChange(_ref);
+                // Allow normal onChange flow
                 settings.onChange();
                 ${inputListener} && postAction({type: "ON_INPUT", data: {inputType: _ref.inputType, data: _ref.data}});
             };
@@ -1017,16 +1023,61 @@ function createHTML(options = {}) {
             });
             addEventListener(content, 'compositionstart', function(event){
                 compositionStatus = 1;
+                // Set iOS-specific composition flag
+                if (window.navigator.platform && (window.navigator.platform.includes('iPhone') || window.navigator.platform.includes('iPad'))) {
+                    postAction({type: 'LOG', data: ['iOS composition started']});
+                    isComposingOnIOS = true;
+                    
+                    // Clear any existing safety timeout
+                    if (compositionSafetyTimeout) {
+                        clearTimeout(compositionSafetyTimeout);
+                    }
+                    
+                    // Safety timeout to reset composition state after 5 seconds
+                    compositionSafetyTimeout = setTimeout(function() {
+                        postAction({type: 'LOG', data: ['iOS composition safety timeout - resetting state']});
+                        isComposingOnIOS = false;
+                        compositionSafetyTimeout = null;
+                    }, 5000);
+                }
             })
             addEventListener(content, 'compositionend', function (event){
                 compositionStatus = 0;
                 
-                // Only format paragraph if we're not in a checkbox list
-                const node = window.getSelection().anchorNode;
-                const inCheckbox = checkboxNode(node);
+                // Clear iOS composition timeout if it exists
+                if (compositionEndTimeout) {
+                    clearTimeout(compositionEndTimeout);
+                }
                 
-                if (paragraphStatus && !inCheckbox) {
-                    formatParagraph(true);
+                // Clear safety timeout since composition is ending properly
+                if (compositionSafetyTimeout) {
+                    clearTimeout(compositionSafetyTimeout);
+                    compositionSafetyTimeout = null;
+                }
+                
+                // Debounce composition end processing on iOS to prevent duplicates
+                if (window.navigator.platform && (window.navigator.platform.includes('iPhone') || window.navigator.platform.includes('iPad'))) {
+                    compositionEndTimeout = setTimeout(function() {
+                        postAction({type: 'LOG', data: ['iOS composition ended']});
+                        isComposingOnIOS = false;
+                        
+                        // Only format paragraph if we're not in a checkbox list
+                        const node = window.getSelection().anchorNode;
+                        const inCheckbox = checkboxNode(node);
+                        
+                        if (paragraphStatus && !inCheckbox) {
+                            formatParagraph(true);
+                        }
+                        compositionEndTimeout = null;
+                    }, 100); // 100ms debounce
+                } else {
+                    // Non-iOS: immediate processing
+                    const node = window.getSelection().anchorNode;
+                    const inCheckbox = checkboxNode(node);
+                    
+                    if (paragraphStatus && !inCheckbox) {
+                        formatParagraph(true);
+                    }
                 }
             })
 
@@ -1062,8 +1113,374 @@ function createHTML(options = {}) {
             defaultParagraphSeparator: '${defaultParagraphSeparator}',
             onChange: function (){
                 clearTimeout(_handleCTime);
+                // String similarity calculation using Levenshtein distance
+                function calculateStringSimilarity(str1, str2) {
+                    var len1 = str1.length;
+                    var len2 = str2.length;
+                    var matrix = [];
+
+                    // Create matrix
+                    for (var i = 0; i <= len1; i++) {
+                        matrix[i] = [];
+                        matrix[i][0] = i;
+                    }
+                    for (var j = 0; j <= len2; j++) {
+                        matrix[0][j] = j;
+                    }
+
+                    // Fill matrix
+                    for (var i = 1; i <= len1; i++) {
+                        for (var j = 1; j <= len2; j++) {
+                            var cost = (str1.charAt(i - 1) === str2.charAt(j - 1)) ? 0 : 1;
+                            matrix[i][j] = Math.min(
+                                matrix[i - 1][j] + 1,      // deletion
+                                matrix[i][j - 1] + 1,      // insertion
+                                matrix[i - 1][j - 1] + cost // substitution
+                            );
+                        }
+                    }
+
+                    var distance = matrix[len1][len2];
+                    var maxLength = Math.max(len1, len2);
+                    return maxLength === 0 ? 1 : (maxLength - distance) / maxLength;
+                }
+
                 _handleCTime = setTimeout(function(){
                     var html = Actions.content.getHtml();
+                    
+                    // iOS voice dictation duplicate content fix
+                    var platform = window.navigator.platform;
+                    var isIOSDevice = platform && (platform.includes('iPhone') || platform.includes('iPad'));
+                    
+                    if (isIOSDevice) {
+                        var needsUpdate = false;
+                        var tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = html;
+                        
+                        // Check each div element for internal duplication
+                        var divElements = tempDiv.getElementsByTagName('div');
+                        for (var i = 0; i < divElements.length; i++) {
+                            var divText = divElements[i].textContent || divElements[i].innerText || '';
+                            
+                            // Skip empty divs or divs with just line breaks
+                            if (divText.trim().length === 0) continue;
+                            
+                            var originalText = divText;
+                            var wasFixed = false;
+                            
+                            // Method 1: Check if entire text is duplicated (first half == second half)
+                            var halfLength = Math.floor(divText.length / 2);
+                            if (halfLength > 2) {
+                                var firstHalf = divText.substring(0, halfLength);
+                                var secondHalf = divText.substring(halfLength);
+                                
+                                if (firstHalf === secondHalf && firstHalf.trim().length > 0) {
+                                    postAction({type: 'LOG', data: ['iOS voice duplication detected (full):', firstHalf]});
+                                    divElements[i].textContent = firstHalf;
+                                    needsUpdate = true;
+                                    wasFixed = true;
+                                }
+                            }
+                            
+                            // Method 2: Check for partial duplication at the end (continuation dictation)
+                            if (!wasFixed && divText.length > 6) { // At least 6 chars to check
+                                // Approach A: Look for patterns where end portion duplicates earlier portion
+                                for (var checkLength = 3; checkLength <= Math.floor(divText.length / 2); checkLength++) {
+                                    var endPortion = divText.substring(divText.length - checkLength);
+                                    
+                                    // Find if this end portion appears earlier in the text
+                                    var earlierIndex = divText.indexOf(endPortion);
+                                    if (earlierIndex >= 0 && earlierIndex < divText.length - checkLength) {
+                                        // Check if it's likely a duplication (not just common words)
+                                        var beforeEnd = divText.substring(0, divText.length - checkLength);
+                                        if (beforeEnd.endsWith(endPortion)) {
+                                            postAction({type: 'LOG', data: ['iOS voice partial duplication detected (A):', endPortion]});
+                                            divElements[i].textContent = beforeEnd;
+                                            needsUpdate = true;
+                                            wasFixed = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                // Approach B: Look for repeated phrases/words using more aggressive scanning
+                                if (!wasFixed) {
+                                    var words = divText.split(/\s+/);
+                                    if (words.length >= 4) { // At least 4 words to check
+                                        // Look for repeated sequences of 2+ words
+                                        for (var seqLen = 2; seqLen <= Math.floor(words.length / 2); seqLen++) {
+                                            var endSequence = words.slice(-seqLen);
+                                            var endSeqText = endSequence.join(' ');
+                                            
+                                            // Look for this sequence earlier in the text
+                                            for (var startPos = 0; startPos <= words.length - seqLen - seqLen; startPos++) {
+                                                var compareSequence = words.slice(startPos, startPos + seqLen);
+                                                var compareSeqText = compareSequence.join(' ');
+                                                
+                                                if (endSeqText === compareSeqText && endSeqText.length > 5) {
+                                                    postAction({type: 'LOG', data: ['iOS voice word sequence duplication detected (B):', endSeqText]});
+                                                    // Remove the duplicate sequence from the end
+                                                    var newWords = words.slice(0, -seqLen);
+                                                    divElements[i].textContent = newWords.join(' ');
+                                                    needsUpdate = true;
+                                                    wasFixed = true;
+                                                    break;
+                                                }
+                                            }
+                                            if (wasFixed) break;
+                                        }
+                                    }
+                                }
+                                
+                                // Approach C: Look for substring duplications more aggressively
+                                if (!wasFixed) {
+                                    // Split by common punctuation and check each part
+                                    var segments = divText.split(/[.!?]\s*/);
+                                    if (segments.length >= 2) {
+                                        var lastSegment = segments[segments.length - 1].trim();
+                                        if (lastSegment.length > 5) {
+                                            // Check if this last segment appears in earlier segments
+                                            for (var segIdx = 0; segIdx < segments.length - 1; segIdx++) {
+                                                if (segments[segIdx].includes(lastSegment)) {
+                                                    postAction({type: 'LOG', data: ['iOS voice segment duplication detected (C):', lastSegment]});
+                                                    // Remove the last segment
+                                                    var newSegments = segments.slice(0, -1);
+                                                    divElements[i].textContent = newSegments.join('. ').trim();
+                                                    needsUpdate = true;
+                                                    wasFixed = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Approach D: Advanced pattern-based duplication detection for question/sentence patterns
+                                if (!wasFixed && divText.length > 20) {
+                                    // Look for repeated question patterns like "What about this? How about this? What about this?"
+                                    var sentences = divText.split(/[.!?]\s+/);
+                                    if (sentences.length >= 2) {
+                                        var cleanedSentences = [];
+                                        for (var s = 0; s < sentences.length; s++) {
+                                            var sentence = sentences[s].trim();
+                                            if (sentence.length > 0) {
+                                                cleanedSentences.push(sentence);
+                                            }
+                                        }
+                                        
+                                        if (cleanedSentences.length >= 2) {
+                                            // Check for similar patterns between consecutive sentences
+                                            var patternFound = false;
+                                            var duplicateIndices = [];
+                                            
+                                            for (var si = 1; si < cleanedSentences.length && !patternFound; si++) {
+                                                var currentSentence = cleanedSentences[si].toLowerCase();
+                                                var previousSentence = cleanedSentences[si-1].toLowerCase();
+                                                
+                                                // Check for exact matches
+                                                if (currentSentence === previousSentence && currentSentence.length > 8) {
+                                                    duplicateIndices.push(si);
+                                                    patternFound = true;
+                                                }
+                                                // Check for similar question patterns (>70% similarity)
+                                                else if (currentSentence.length > 10 && previousSentence.length > 10) {
+                                                    var similarity = calculateStringSimilarity(currentSentence, previousSentence);
+                                                    if (similarity > 0.7) {
+                                                        duplicateIndices.push(si);
+                                                        patternFound = true;
+                                                    }
+                                                }
+                                                // Check for pattern like "X about this one? Y about this one?"
+                                                else if (currentSentence.includes('about') && previousSentence.includes('about')) {
+                                                    var currentWords = currentSentence.split(/\s+/);
+                                                    var previousWords = previousSentence.split(/\s+/);
+                                                    var matchingWords = 0;
+                                                    
+                                                    for (var cw = 0; cw < currentWords.length; cw++) {
+                                                        if (previousWords.indexOf(currentWords[cw]) >= 0) {
+                                                            matchingWords++;
+                                                        }
+                                                    }
+                                                    
+                                                    var wordSimilarity = matchingWords / Math.max(currentWords.length, previousWords.length);
+                                                    if (wordSimilarity > 0.6) {
+                                                        duplicateIndices.push(si);
+                                                        patternFound = true;
+                                                    }
+                                                }
+                                            }
+                                            
+                                            if (patternFound && duplicateIndices.length > 0) {
+                                                postAction({type: 'LOG', data: ['iOS voice pattern duplication detected (D), removing indices:', duplicateIndices]});
+                                                // Remove duplicate sentences
+                                                var filteredSentences = [];
+                                                for (var fi = 0; fi < cleanedSentences.length; fi++) {
+                                                    if (duplicateIndices.indexOf(fi) === -1) {
+                                                        filteredSentences.push(cleanedSentences[fi]);
+                                                    }
+                                                }
+                                                divElements[i].textContent = filteredSentences.join('. ') + (filteredSentences.length > 0 ? '.' : '');
+                                                needsUpdate = true;
+                                                wasFixed = true;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Approach E: Specific detection for question repetition patterns
+                                if (!wasFixed && divText.length > 15) {
+                                    // Look for specific patterns like "What about X? How about Y? What about Z?"
+                                    var questionMarkers = ['what about', 'how about', 'are you going to'];
+                                    var foundPattern = false;
+                                    
+                                    for (var qm = 0; qm < questionMarkers.length && !foundPattern; qm++) {
+                                        var marker = questionMarkers[qm];
+                                        var lowerText = divText.toLowerCase();
+                                        var markerIndices = [];
+                                        var searchStart = 0;
+                                        
+                                        // Find all occurrences of this question marker
+                                        while (true) {
+                                            var index = lowerText.indexOf(marker, searchStart);
+                                            if (index === -1) break;
+                                            markerIndices.push(index);
+                                            searchStart = index + marker.length;
+                                        }
+                                        
+                                        // If we found the same question pattern 2+ times, it's likely duplication
+                                        if (markerIndices.length >= 2) {
+                                            var questionSegments = [];
+                                            for (var mi = 0; mi < markerIndices.length; mi++) {
+                                                var startIndex = markerIndices[mi];
+                                                var endIndex = (mi + 1 < markerIndices.length) ? markerIndices[mi + 1] : divText.length;
+                                                var segment = divText.substring(startIndex, endIndex).replace(/[.!?]\s*$/, '').trim();
+                                                questionSegments.push(segment);
+                                            }
+                                            
+                                            // Check if any segments are similar (indicating duplication)
+                                            for (var qs1 = 0; qs1 < questionSegments.length - 1; qs1++) {
+                                                for (var qs2 = qs1 + 1; qs2 < questionSegments.length; qs2++) {
+                                                    var seg1 = questionSegments[qs1].toLowerCase();
+                                                    var seg2 = questionSegments[qs2].toLowerCase();
+                                                    
+                                                    if (seg1.length > 8 && seg2.length > 8) {
+                                                        var segmentSimilarity = calculateStringSimilarity(seg1, seg2);
+                                                        if (segmentSimilarity > 0.6) {
+                                                            postAction({type: 'LOG', data: ['iOS voice question duplication detected (E):', marker, 'segments:', seg1, seg2]});
+                                                            
+                                                            // Keep only the first occurrence, remove duplicates
+                                                            var firstSegment = questionSegments[0];
+                                                            var cleanedText = firstSegment + (firstSegment.match(/[.!?]$/) ? '' : '.');
+                                                            divElements[i].textContent = cleanedText;
+                                                            needsUpdate = true;
+                                                            wasFixed = true;
+                                                            foundPattern = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                if (foundPattern) break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Method 3: Check for duplications across consecutive div elements
+                        // Run this regardless of needsUpdate to catch all cross-div duplications
+                        if (divElements.length > 1) {
+                            // Multiple passes to catch complex duplication patterns
+                            var maxPasses = 3; // Limit to prevent infinite loops
+                            var passCount = 0;
+                            var foundDuplicationsInPass = true;
+                            
+                            while (foundDuplicationsInPass && passCount < maxPasses) {
+                                foundDuplicationsInPass = false;
+                                passCount++;
+                                
+                                // Refresh divElements after each pass since we might have removed some
+                                divElements = tempDiv.getElementsByTagName('div');
+                                
+                                for (var j = 1; j < divElements.length; j++) {
+                                    var currentDiv = divElements[j];
+                                    var previousDiv = divElements[j-1];
+                                    
+                                    if (!currentDiv || !previousDiv) continue; // Skip if removed
+                                    
+                                    var currentText = currentDiv.textContent || currentDiv.innerText || '';
+                                    var previousText = previousDiv.textContent || previousDiv.innerText || '';
+                                    
+                                    // Skip empty divs
+                                    if (currentText.trim().length === 0 || previousText.trim().length === 0) continue;
+                                    
+                                    // Check if current div content duplicates previous div content
+                                    if (currentText === previousText && currentText.trim().length > 0) {
+                                        postAction({type: 'LOG', data: ['iOS voice cross-div exact duplication detected:', currentText]});
+                                        currentDiv.remove();
+                                        needsUpdate = true;
+                                        foundDuplicationsInPass = true;
+                                        break; // Restart the loop after removal
+                                    }
+                                    
+                                    // Check if current div starts with content that duplicates end of previous div
+                                    if (previousText.length > 5 && currentText.length > 3) {
+                                        // Look for overlapping content - be more aggressive
+                                        var maxOverlap = Math.min(previousText.length, currentText.length);
+                                        for (var overlapLen = 3; overlapLen <= maxOverlap; overlapLen++) {
+                                            var prevEnd = previousText.substring(previousText.length - overlapLen);
+                                            var currentStart = currentText.substring(0, overlapLen);
+                                            
+                                            if (prevEnd === currentStart && prevEnd.trim().length > 0) {
+                                                postAction({type: 'LOG', data: ['iOS voice cross-div overlap detected:', prevEnd]});
+                                                var remainingText = currentText.substring(overlapLen);
+                                                if (remainingText.trim().length === 0) {
+                                                    // If nothing left, remove the div
+                                                    currentDiv.remove();
+                                                } else {
+                                                    // Otherwise, keep the remaining text
+                                                    currentDiv.textContent = remainingText;
+                                                }
+                                                needsUpdate = true;
+                                                foundDuplicationsInPass = true;
+                                                break;
+                                            }
+                                        }
+                                        if (foundDuplicationsInPass) break;
+                                    }
+                                    
+                                    // Additional check: if current div is contained within previous div
+                                    if (currentText.length < previousText.length && previousText.includes(currentText) && currentText.trim().length > 0) {
+                                        postAction({type: 'LOG', data: ['iOS voice contained duplication detected:', currentText]});
+                                        currentDiv.remove();
+                                        needsUpdate = true;
+                                        foundDuplicationsInPass = true;
+                                        break;
+                                    }
+                                    
+                                    // Check if previous div is contained within current div (reverse case)
+                                    if (previousText.length < currentText.length && currentText.includes(previousText) && previousText.trim().length > 0) {
+                                        // Check if current div starts with previous div content
+                                        if (currentText.startsWith(previousText)) {
+                                            postAction({type: 'LOG', data: ['iOS voice reverse contained duplication detected:', previousText]});
+                                            previousDiv.remove();
+                                            needsUpdate = true;
+                                            foundDuplicationsInPass = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // If we fixed any duplications, update the HTML
+                        if (needsUpdate) {
+                            content.innerHTML = tempDiv.innerHTML;
+                            html = Actions.content.getHtml();
+                            postAction({type: 'LOG', data: ['iOS voice duplication fixed, updated HTML']});
+                        }
+                    }
+                    
                     postAction({type: 'CONTENT_CHANGE', data: html});
                 }, 50);
             }
