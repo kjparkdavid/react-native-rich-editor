@@ -1025,7 +1025,6 @@ function createHTML(options = {}) {
                 compositionStatus = 1;
                 // Set iOS-specific composition flag
                 if (window.navigator.platform && (window.navigator.platform.includes('iPhone') || window.navigator.platform.includes('iPad'))) {
-                    postAction({type: 'LOG', data: ['iOS composition started']});
                     isComposingOnIOS = true;
                     
                     // Clear any existing safety timeout
@@ -1035,7 +1034,6 @@ function createHTML(options = {}) {
                     
                     // Safety timeout to reset composition state after 5 seconds
                     compositionSafetyTimeout = setTimeout(function() {
-                        postAction({type: 'LOG', data: ['iOS composition safety timeout - resetting state']});
                         isComposingOnIOS = false;
                         compositionSafetyTimeout = null;
                     }, 5000);
@@ -1058,7 +1056,6 @@ function createHTML(options = {}) {
                 // Debounce composition end processing on iOS to prevent duplicates
                 if (window.navigator.platform && (window.navigator.platform.includes('iPhone') || window.navigator.platform.includes('iPad'))) {
                     compositionEndTimeout = setTimeout(function() {
-                        postAction({type: 'LOG', data: ['iOS composition ended']});
                         isComposingOnIOS = false;
                         
                         // Only format paragraph if we're not in a checkbox list
@@ -1153,9 +1150,14 @@ function createHTML(options = {}) {
                     var isIOSDevice = platform && (platform.includes('iPhone') || platform.includes('iPad'));
                     
                     if (isIOSDevice) {
+                        // Only do cursor restoration if we're in the middle of composition AND 
+                        // this isn't a user-initiated cursor change
+                        var shouldRestoreCursor = isComposingOnIOS;
+                        
                         var needsUpdate = false;
                         var tempDiv = document.createElement('div');
                         tempDiv.innerHTML = html;
+                        var fixedDivs = []; // Track which divs we actually fixed
                         
                         // Check each div element for internal duplication
                         var divElements = tempDiv.getElementsByTagName('div');
@@ -1175,10 +1177,10 @@ function createHTML(options = {}) {
                                 var secondHalf = divText.substring(halfLength);
                                 
                                 if (firstHalf === secondHalf && firstHalf.trim().length > 0) {
-                                    postAction({type: 'LOG', data: ['iOS voice duplication detected (full):', firstHalf]});
                                     divElements[i].textContent = firstHalf;
                                     needsUpdate = true;
                                     wasFixed = true;
+                                    fixedDivs.push({index: i, originalText: originalText, newText: firstHalf});
                                 }
                             }
                             
@@ -1194,10 +1196,10 @@ function createHTML(options = {}) {
                                         // Check if it's likely a duplication (not just common words)
                                         var beforeEnd = divText.substring(0, divText.length - checkLength);
                                         if (beforeEnd.endsWith(endPortion)) {
-                                            postAction({type: 'LOG', data: ['iOS voice partial duplication detected (A):', endPortion]});
                                             divElements[i].textContent = beforeEnd;
                                             needsUpdate = true;
                                             wasFixed = true;
+                                            fixedDivs.push({index: i, originalText: originalText, newText: beforeEnd});
                                             break;
                                         }
                                     }
@@ -1218,12 +1220,13 @@ function createHTML(options = {}) {
                                                 var compareSeqText = compareSequence.join(' ');
                                                 
                                                 if (endSeqText === compareSeqText && endSeqText.length > 5) {
-                                                    postAction({type: 'LOG', data: ['iOS voice word sequence duplication detected (B):', endSeqText]});
                                                     // Remove the duplicate sequence from the end
                                                     var newWords = words.slice(0, -seqLen);
-                                                    divElements[i].textContent = newWords.join(' ');
+                                                    var newText = newWords.join(' ');
+                                                    divElements[i].textContent = newText;
                                                     needsUpdate = true;
                                                     wasFixed = true;
+                                                    fixedDivs.push({index: i, originalText: originalText, newText: newText});
                                                     break;
                                                 }
                                             }
@@ -1242,12 +1245,13 @@ function createHTML(options = {}) {
                                             // Check if this last segment appears in earlier segments
                                             for (var segIdx = 0; segIdx < segments.length - 1; segIdx++) {
                                                 if (segments[segIdx].includes(lastSegment)) {
-                                                    postAction({type: 'LOG', data: ['iOS voice segment duplication detected (C):', lastSegment]});
                                                     // Remove the last segment
                                                     var newSegments = segments.slice(0, -1);
-                                                    divElements[i].textContent = newSegments.join('. ').trim();
+                                                    var newText = newSegments.join('. ').trim();
+                                                    divElements[i].textContent = newText;
                                                     needsUpdate = true;
                                                     wasFixed = true;
+                                                    fixedDivs.push({index: i, originalText: originalText, newText: newText});
                                                     break;
                                                 }
                                             }
@@ -1311,7 +1315,6 @@ function createHTML(options = {}) {
                                             }
                                             
                                             if (patternFound && duplicateIndices.length > 0) {
-                                                postAction({type: 'LOG', data: ['iOS voice pattern duplication detected (D), removing indices:', duplicateIndices]});
                                                 // Remove duplicate sentences
                                                 var filteredSentences = [];
                                                 for (var fi = 0; fi < cleanedSentences.length; fi++) {
@@ -1319,9 +1322,11 @@ function createHTML(options = {}) {
                                                         filteredSentences.push(cleanedSentences[fi]);
                                                     }
                                                 }
-                                                divElements[i].textContent = filteredSentences.join('. ') + (filteredSentences.length > 0 ? '.' : '');
+                                                var newText = filteredSentences.join('. ') + (filteredSentences.length > 0 ? '.' : '');
+                                                divElements[i].textContent = newText;
                                                 needsUpdate = true;
                                                 wasFixed = true;
+                                                fixedDivs.push({index: i, originalText: originalText, newText: newText});
                                             }
                                         }
                                     }
@@ -1366,7 +1371,6 @@ function createHTML(options = {}) {
                                                     if (seg1.length > 8 && seg2.length > 8) {
                                                         var segmentSimilarity = calculateStringSimilarity(seg1, seg2);
                                                         if (segmentSimilarity > 0.6) {
-                                                            postAction({type: 'LOG', data: ['iOS voice question duplication detected (E):', marker, 'segments:', seg1, seg2]});
                                                             
                                                             // Keep only the first occurrence, remove duplicates
                                                             var firstSegment = questionSegments[0];
@@ -1375,12 +1379,49 @@ function createHTML(options = {}) {
                                                             needsUpdate = true;
                                                             wasFixed = true;
                                                             foundPattern = true;
+                                                            fixedDivs.push({index: i, originalText: originalText, newText: cleanedText});
                                                             break;
                                                         }
                                                     }
                                                 }
                                                 if (foundPattern) break;
                                             }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Method 2.5: Aggressive substring duplication detection for sentence continuation
+                        for (var i = 0; i < divElements.length; i++) {
+                            var divText = divElements[i].textContent || divElements[i].innerText || '';
+                            if (divText.trim().length === 0 || divText.length < 16) continue;
+                            
+                            var originalText = divText;
+                            var wasFixed = false;
+                            
+                            // Look for any repeated substrings of reasonable length
+                            var minSubstringLength = 8;
+                            var maxSubstringLength = Math.floor(divText.length / 2);
+                            
+                            for (var subLen = maxSubstringLength; subLen >= minSubstringLength && !wasFixed; subLen--) {
+                                for (var start = 0; start <= divText.length - subLen * 2 && !wasFixed; start++) {
+                                    var substring = divText.substring(start, start + subLen);
+                                    
+                                    // Skip substrings that are mostly spaces or very short meaningful content
+                                    if (substring.trim().length < Math.max(6, subLen * 0.6)) continue;
+                                    
+                                    // Look for this exact substring appearing again later
+                                    var nextOccurrence = divText.indexOf(substring, start + subLen);
+                                    if (nextOccurrence !== -1) {
+                                        
+                                        // Remove everything from the duplicate occurrence onward
+                                        var cleanedText = divText.substring(0, nextOccurrence).trim();
+                                        if (cleanedText.length > 0) {
+                                            divElements[i].textContent = cleanedText;
+                                            needsUpdate = true;
+                                            wasFixed = true;
+                                            fixedDivs.push({index: i, originalText: originalText, newText: cleanedText});
                                         }
                                     }
                                 }
@@ -1416,7 +1457,6 @@ function createHTML(options = {}) {
                                     
                                     // Check if current div content duplicates previous div content
                                     if (currentText === previousText && currentText.trim().length > 0) {
-                                        postAction({type: 'LOG', data: ['iOS voice cross-div exact duplication detected:', currentText]});
                                         currentDiv.remove();
                                         needsUpdate = true;
                                         foundDuplicationsInPass = true;
@@ -1432,7 +1472,6 @@ function createHTML(options = {}) {
                                             var currentStart = currentText.substring(0, overlapLen);
                                             
                                             if (prevEnd === currentStart && prevEnd.trim().length > 0) {
-                                                postAction({type: 'LOG', data: ['iOS voice cross-div overlap detected:', prevEnd]});
                                                 var remainingText = currentText.substring(overlapLen);
                                                 if (remainingText.trim().length === 0) {
                                                     // If nothing left, remove the div
@@ -1451,7 +1490,6 @@ function createHTML(options = {}) {
                                     
                                     // Additional check: if current div is contained within previous div
                                     if (currentText.length < previousText.length && previousText.includes(currentText) && currentText.trim().length > 0) {
-                                        postAction({type: 'LOG', data: ['iOS voice contained duplication detected:', currentText]});
                                         currentDiv.remove();
                                         needsUpdate = true;
                                         foundDuplicationsInPass = true;
@@ -1462,7 +1500,6 @@ function createHTML(options = {}) {
                                     if (previousText.length < currentText.length && currentText.includes(previousText) && previousText.trim().length > 0) {
                                         // Check if current div starts with previous div content
                                         if (currentText.startsWith(previousText)) {
-                                            postAction({type: 'LOG', data: ['iOS voice reverse contained duplication detected:', previousText]});
                                             previousDiv.remove();
                                             needsUpdate = true;
                                             foundDuplicationsInPass = true;
@@ -1473,11 +1510,77 @@ function createHTML(options = {}) {
                             }
                         }
                         
-                        // If we fixed any duplications, update the HTML
+                        // If we fixed any duplications, update the HTML and restore cursor
                         if (needsUpdate) {
+                            // Store cursor position before HTML update
+                            var selection = window.getSelection();
+                            var savedRange = null;
+                            var cursorOffset = 0;
+                            var totalTextLength = 0;
+                            
+                            if (selection.rangeCount > 0) {
+                                var range = selection.getRangeAt(0);
+                                // Calculate cursor position as offset from start of all text
+                                var walker = document.createTreeWalker(
+                                    content,
+                                    NodeFilter.SHOW_TEXT,
+                                    null,
+                                    false
+                                );
+                                
+                                while (walker.nextNode()) {
+                                    if (walker.currentNode === range.startContainer) {
+                                        cursorOffset = totalTextLength + range.startOffset;
+                                        break;
+                                    }
+                                    totalTextLength += walker.currentNode.textContent.length;
+                                }
+                            }
+                            
+                            // Update the HTML
                             content.innerHTML = tempDiv.innerHTML;
                             html = Actions.content.getHtml();
-                            postAction({type: 'LOG', data: ['iOS voice duplication fixed, updated HTML']});
+                            
+                            // Restore cursor position after HTML update
+                            setTimeout(function() {
+                                try {
+                                    if (cursorOffset >= 0) {
+                                        var newSelection = window.getSelection();
+                                        var newRange = document.createRange();
+                                        var currentOffset = 0;
+                                        var targetNode = null;
+                                        var targetOffset = 0;
+                                        
+                                        var walker = document.createTreeWalker(
+                                            content,
+                                            NodeFilter.SHOW_TEXT,
+                                            null,
+                                            false
+                                        );
+                                        
+                                        while (walker.nextNode()) {
+                                            var nodeLength = walker.currentNode.textContent.length;
+                                            if (currentOffset + nodeLength >= cursorOffset) {
+                                                targetNode = walker.currentNode;
+                                                targetOffset = cursorOffset - currentOffset;
+                                                break;
+                                            }
+                                            currentOffset += nodeLength;
+                                        }
+                                        
+                                        if (targetNode) {
+                                            // Make sure offset is within bounds
+                                            targetOffset = Math.min(targetOffset, targetNode.textContent.length);
+                                            newRange.setStart(targetNode, targetOffset);
+                                            newRange.setEnd(targetNode, targetOffset);
+                                            newSelection.removeAllRanges();
+                                            newSelection.addRange(newRange);
+                                        }
+                                    }
+                                } catch (e) {
+                                    // If cursor restoration fails, ignore silently
+                                }
+                            }, 0);
                         }
                     }
                     
