@@ -202,6 +202,14 @@ export default class RichToolbar extends Component {
         let that = this;
         const icon = that._getButtonIcon(action);
         const {iconSize, iconGap, disabled, itemStyle} = that.props;
+
+        // Get the index of the current action in the actions array
+        const actionIndex = that.state.actions.indexOf(action);
+        const totalActions = that.state.actions.length;
+
+        // Use iconSize of 32 for first three icons, 20 for the rest
+        const currentIconSize = actionIndex < 3 ? 32 : iconSize;
+
         const style = selected ? this.props.selectedButtonStyle : {};
         const tintColor = disabled
             ? that.props.disabledIconTint
@@ -216,13 +224,13 @@ export default class RichToolbar extends Component {
                 onPress={() => that._onPress(action)}>
                 {icon ? (
                     typeof icon === 'function' ? (
-                        icon({selected, disabled, tintColor, iconSize, iconGap})
+                        icon({selected, disabled, tintColor, iconSize: currentIconSize, iconGap})
                     ) : (
                         <Image
                             source={icon}
                             style={{
-                                height: iconSize,
-                                width: iconSize,
+                                height: currentIconSize,
+                                width: currentIconSize,
                                 alignSelf: 'center',
                                 justifyContent: 'center',
                             }}
@@ -246,8 +254,8 @@ export default class RichToolbar extends Component {
         // Apply border radius to the FlatList content container
         const contentContainerStyleWithRadius = [
             {
-                borderRadius: 100,
-                paddingHorizontal: 8,
+                borderRadius: 10,
+                paddingHorizontal: 16,
             },
             flatContainerStyle,
         ];
@@ -275,16 +283,13 @@ const styles = StyleSheet.create({
         height: 40,
         width: Dimensions.get('window').width,
         justifyContent: 'center',
-        borderTopLeftRadius: 20,
-        borderBottomLeftRadius: 20,
         overflow: 'hidden',
     },
 
     item: {
         width: 24,
         height: 24,
-        padding: 10,
-        marginHorizontal: 8,
+        marginRight: 16,
         alignSelf: 'center',
         justifyContent: 'center',
     },
