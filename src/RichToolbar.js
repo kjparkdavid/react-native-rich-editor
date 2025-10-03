@@ -205,10 +205,11 @@ export default class RichToolbar extends Component {
 
         // Get the index of the current action in the actions array
         const actionIndex = that.state.actions.indexOf(action);
-        const totalActions = that.state.actions.length;
 
         // Use iconSize of 32 for first three icons, 20 for the rest
-        const currentIconSize = actionIndex < 3 ? 32 : iconSize;
+        // TODO: uncomment this when we launch the next gen editor
+        // const currentIconSize = actionIndex < 3 ? 32 : iconSize;
+        const currentIconSize = iconSize;
 
         const style = selected ? this.props.selectedButtonStyle : {};
         const tintColor = disabled
