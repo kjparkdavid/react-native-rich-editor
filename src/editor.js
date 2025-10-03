@@ -1149,7 +1149,8 @@ function createHTML(options = {}) {
                     var platform = window.navigator.platform;
                     var isIOSDevice = platform && (platform.includes('iPhone') || platform.includes('iPad'));
                     
-                    if (isIOSDevice) {
+                    // DISABLED: iOS voice dictation duplicate content fix
+                    if (false && isIOSDevice) {
                         // Only do cursor restoration if we're in the middle of composition AND 
                         // this isn't a user-initiated cursor change
                         var shouldRestoreCursor = isComposingOnIOS;
