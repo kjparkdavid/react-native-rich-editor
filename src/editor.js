@@ -142,6 +142,7 @@ function createHTML(options = {}) {
         }
         let prevAttributes = [];
         let isProcessingSelectionChange = false;
+        var isRestoringFocus = false;
         var _contentLimitReached = false;
         let prevCursorPosition = 0;
 
@@ -286,18 +287,26 @@ function createHTML(options = {}) {
 
         function saveSelection(){
             var sel = window.getSelection();
-            anchorNode = sel.anchorNode;
-            anchorOffset = sel.anchorOffset;
-            focusNode = sel.focusNode;
-            focusOffset = sel.focusOffset;
+            if (sel.anchorNode && editor.content.contains(sel.anchorNode)) {
+                anchorNode = sel.anchorNode;
+                anchorOffset = sel.anchorOffset;
+                focusNode = sel.focusNode;
+                focusOffset = sel.focusOffset;
+            }
         }
 
         function focusCurrent(){
+            isRestoringFocus = true;
             editor.content.focus();
             try {
                 var selection = window.getSelection();
                 if (anchorNode){
-                    if (anchorNode !== selection.anchorNode && !selection.containsNode(anchorNode)){
+                    if (!editor.content.contains(anchorNode)) {
+                        // Saved node was removed from DOM, fall back to end of content
+                        anchorNode = null;
+                        selection.selectAllChildren(editor.content);
+                        selection.collapseToEnd();
+                    } else if (anchorNode !== selection.anchorNode && !selection.containsNode(anchorNode)){
                         _focusCollapse = true;
                         selection.collapse(anchorNode, anchorOffset);
                     }
@@ -307,8 +316,17 @@ function createHTML(options = {}) {
                     selection.collapseToEnd();
                 }
             } catch(e){
-                console.log(e)
+                console.log(e);
+                // Ensure we always have a valid selection
+                try {
+                    var sel = window.getSelection();
+                    if (!sel.rangeCount) {
+                        sel.selectAllChildren(editor.content);
+                        sel.collapseToEnd();
+                    }
+                } catch(e2) {}
             }
+            setTimeout(function(){ isRestoringFocus = false; }, 0);
         }
 
         function hasAttributesChanged(currentAttributes) {
@@ -318,6 +336,12 @@ function createHTML(options = {}) {
         function setAttributeOnCurrentSelection(attribute, value) {
             let selection = window.getSelection();
             let node = selection.anchorNode;
+
+            // Fall back to saved position when selection is broken (e.g. modal overlay)
+            if (!node || !editor.content.contains(node)) {
+                node = anchorNode;
+            }
+
             let selectedText = selection.toString();
 
             if(selectedText.length > 0) {
@@ -345,11 +369,15 @@ function createHTML(options = {}) {
                 p.appendChild(fontEl);
                 editor.content.innerHTML = '';
                 editor.content.appendChild(p);
-                var range = document.createRange();
-                range.setStart(fontEl.firstChild, 1);
-                range.collapse(true);
-                selection.removeAllRanges();
-                selection.addRange(range);
+                anchorNode = fontEl.firstChild;
+                anchorOffset = 1;
+                try {
+                    var range = document.createRange();
+                    range.setStart(fontEl.firstChild, 1);
+                    range.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                } catch(e) {}
                 cleanEmptyFontsInParagraph(fontEl);
                 return;
             }
@@ -362,9 +390,30 @@ function createHTML(options = {}) {
             if (isExistingFontEmpty) {
                 existingFont.setAttribute(attribute, value);
                 appendToStyle(existingFont, attribute, value);
+                // Save position inside the modified font
+                var textChild = existingFont.firstChild;
+                while (textChild && textChild.nodeType !== Node.TEXT_NODE) {
+                    textChild = textChild.firstChild || textChild.nextSibling;
+                }
+                if (textChild) {
+                    anchorNode = textChild;
+                    anchorOffset = textChild.length;
+                }
                 cleanEmptyFontsInParagraph(existingFont);
                 getAttributesAndPostMessage();
                 return;
+            }
+
+            // If selection has no range, try to create one from saved position
+            if (selection.rangeCount === 0 && node && editor.content.contains(node)) {
+                try {
+                    var maxOff = node.nodeType === Node.TEXT_NODE ? node.length : node.childNodes.length;
+                    var r = document.createRange();
+                    r.setStart(node, Math.min(anchorOffset || 0, maxOff));
+                    r.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(r);
+                } catch(e) {}
             }
 
             // Normal case: insert a new <font> element with ZWSP at cursor position
@@ -376,11 +425,68 @@ function createHTML(options = {}) {
                 var curRange = selection.getRangeAt(0);
                 curRange.collapse(false);
                 curRange.insertNode(fontEl);
-                var newRange = document.createRange();
-                newRange.setStart(fontEl.firstChild, 1);
-                newRange.collapse(true);
-                selection.removeAllRanges();
-                selection.addRange(newRange);
+
+                // If fontEl is inside a parent <font> with font-size, split it out
+                // so the parent's larger font-size doesn't inflate line height
+                var splitParent = fontEl.parentNode;
+                if (splitParent && splitParent.nodeName === 'FONT' && splitParent.style.fontSize) {
+                    var afterNodes = [];
+                    var nextSib = fontEl.nextSibling;
+                    while (nextSib) {
+                        afterNodes.push(nextSib);
+                        nextSib = nextSib.nextSibling;
+                    }
+                    splitParent.parentNode.insertBefore(fontEl, splitParent.nextSibling);
+                    if (afterNodes.length > 0) {
+                        var tailFont = splitParent.cloneNode(false);
+                        for (var j = 0; j < afterNodes.length; j++) {
+                            tailFont.appendChild(afterNodes[j]);
+                        }
+                        fontEl.parentNode.insertBefore(tailFont, fontEl.nextSibling);
+                    }
+                    // Inherit attributes (e.g. face) from parent that fontEl doesn't have
+                    for (var j = 0; j < splitParent.attributes.length; j++) {
+                        var pa = splitParent.attributes[j];
+                        if (pa.name !== 'style' && !fontEl.hasAttribute(pa.name)) {
+                            fontEl.setAttribute(pa.name, pa.value);
+                            appendToStyle(fontEl, pa.name, pa.value);
+                        }
+                    }
+                }
+
+                // Save position directly (addRange may fail if editor lacks native focus)
+                anchorNode = fontEl.firstChild;
+                anchorOffset = 1;
+                try {
+                    var newRange = document.createRange();
+                    newRange.setStart(fontEl.firstChild, 1);
+                    newRange.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(newRange);
+                } catch(e) {}
+                cleanEmptyFontsInParagraph(fontEl);
+            } else if (node && editor.content.contains(node)) {
+                // Selection API completely broken — insert font via direct DOM manipulation
+                fontEl = document.createElement('font');
+                fontEl.setAttribute(attribute, value);
+                fontEl.style[cssProperty] = cssValue;
+                fontEl.textContent = '\u200B';
+                if (node.nodeType === Node.TEXT_NODE) {
+                    var off = Math.min(anchorOffset || 0, node.length);
+                    if (off < node.length) {
+                        node.splitText(off);
+                    }
+                    node.parentNode.insertBefore(fontEl, node.nextSibling);
+                } else {
+                    var childOff = Math.min(anchorOffset || 0, node.childNodes.length);
+                    if (childOff < node.childNodes.length) {
+                        node.insertBefore(fontEl, node.childNodes[childOff]);
+                    } else {
+                        node.appendChild(fontEl);
+                    }
+                }
+                anchorNode = fontEl.firstChild;
+                anchorOffset = 1;
                 cleanEmptyFontsInParagraph(fontEl);
             }
         }
@@ -477,6 +583,9 @@ function createHTML(options = {}) {
         function getAttributesAndPostMessage() {
             let selection = window.getSelection();
             let node = selection.anchorNode;
+            if (!node || !editor.content.contains(node)) {
+                node = anchorNode;
+            }
             let attributes = [];
 
             if (node) {
@@ -542,10 +651,12 @@ function createHTML(options = {}) {
                 // Remove orphaned ZWSP-only font placeholders when cursor moves away
                 var allFonts = editor.content.querySelectorAll('font');
                 var sel = window.getSelection();
-                for (var i = 0; i < allFonts.length; i++) {
-                    var f = allFonts[i];
-                    if (f.textContent === '\u200B' && (!sel.anchorNode || !f.contains(sel.anchorNode))) {
-                        f.parentNode.removeChild(f);
+                if (sel.anchorNode && !isRestoringFocus) {
+                    for (var i = 0; i < allFonts.length; i++) {
+                        var f = allFonts[i];
+                        if (f.textContent === '\u200B' && !f.contains(sel.anchorNode)) {
+                            f.parentNode.removeChild(f);
+                        }
                     }
                 }
                 getAttributesAndPostMessage();
