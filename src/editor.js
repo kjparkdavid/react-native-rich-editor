@@ -344,7 +344,7 @@ function createHTML(options = {}) {
 
             let selectedText = selection.toString();
 
-            if(selectedText.length > 0) {
+            if(selectedText.length > 0 && !selection.isCollapsed) {
                 if(attribute === 'size') {
                     exec('fontSize', value);
                     return;
@@ -528,7 +528,7 @@ function createHTML(options = {}) {
                         textNode.textContent = textNode.textContent.replace(/\u200B/g, '');
                     }
                 }
-                if (!fonts[i].textContent) {
+                if (!fonts[i].textContent && !fonts[i].querySelector('br')) {
                     fonts[i].parentNode.removeChild(fonts[i]);
                 }
             }
@@ -546,7 +546,7 @@ function createHTML(options = {}) {
             for (var i = childFonts.length - 1; i >= 0; i--) {
                 var cf = childFonts[i];
                 if (cf === keepFont || cf.contains(keepFont)) continue;
-                if (!cf.textContent.replace(/[\u200B\u00A0\uFEFF]/g, '').trim()) {
+                if (!cf.textContent.replace(/[\u200B\u00A0\uFEFF]/g, '').trim() && !cf.querySelector('br')) {
                     cf.parentNode.removeChild(cf);
                 }
             }
