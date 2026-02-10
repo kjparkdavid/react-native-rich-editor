@@ -218,6 +218,7 @@ export default class RichTextEditor extends Component {
             onMessage,
             onCursorPosition,
             onAttributeChanged,
+            onContentLimitWarning,
             trackCursorPosition,
             onImageClicked,
             onWebViewDeselectStickers,
@@ -293,6 +294,9 @@ export default class RichTextEditor extends Component {
                     break;
                 case messages.ATTRIBUTE_CHANGED:
                     onAttributeChanged?.(data);
+                    break;
+                case messages.CONTENT_LIMIT_WARNING:
+                    onContentLimitWarning?.(data);
                     break;
                 // Newer way to track cursor position which tracks every cursor change
                 case messages.CURSOR_POSITION:
