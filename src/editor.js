@@ -351,12 +351,15 @@ function createHTML(options = {}) {
                 } else if(attribute === 'face') {
                     exec('fontName', value);
                     return;
+                } else if(attribute === 'color') {
+                    exec('foreColor', value);
+                    return;
                 }
             }
 
             // No selection: use ZWSP technique to apply formatting to future typed text
             var fontEl;
-            var cssProperty = attribute === 'size' ? 'font-size' : 'font-family';
+            var cssProperty = attribute === 'size' ? 'font-size' : attribute === 'face' ? 'font-family' : 'color';
             var cssValue = attribute === 'size' ? convertSizeToPixel(parseInt(value)) : value;
 
             // Empty editor: create a font element with ZWSP and replace content
@@ -426,10 +429,11 @@ function createHTML(options = {}) {
                 curRange.collapse(false);
                 curRange.insertNode(fontEl);
 
-                // If fontEl is inside a parent <font> with font-size, split it out
-                // so the parent's larger font-size doesn't inflate line height
+                // If fontEl is inside a parent <font> that has the same attribute
+                // (e.g. font-size, color), split it out so the new formatting
+                // is at the same level and cursor stability is preserved
                 var splitParent = fontEl.parentNode;
-                if (splitParent && splitParent.nodeName === 'FONT' && splitParent.style.fontSize) {
+                if (splitParent && splitParent.nodeName === 'FONT' && (splitParent.style.fontSize || splitParent.hasAttribute(attribute))) {
                     var afterNodes = [];
                     var nextSib = fontEl.nextSibling;
                     while (nextSib) {
@@ -568,12 +572,14 @@ function createHTML(options = {}) {
               // Add system fallbacks after the custom font
               const systemFallbacks = ', Roboto, "Segoe UI", system-ui, Arial, sans-serif';
               styleMap['font-family'] = fontName + systemFallbacks;
-              
+
               // Force a re-render to ensure the font is applied
               targetElement.style.fontFamily = '';
               setTimeout(() => {
                 targetElement.style.fontFamily = fontName + systemFallbacks;
               }, 0);
+            } else if (attribute === 'color') {
+              styleMap['color'] = value;
             }
           
             let newStyle = Object.entries(styleMap).map(([key, val]) => key + ': ' + val).join('; ') + ';';
@@ -785,7 +791,10 @@ function createHTML(options = {}) {
             justifyRight: { state: function() { return queryCommandState('justifyRight'); }, result: function() { return exec('justifyRight'); }},
             justifyFull: { state: function() { return queryCommandState('justifyFull'); }, result: function() { return exec('justifyFull'); }},
             hiliteColor: {  state: function() { return queryCommandState('hiliteColor'); }, result: function(color) { return exec('hiliteColor', color); }},
-            foreColor: { state: function() { return queryCommandState('foreColor'); }, result: function(color) { return exec('foreColor', color); }},
+            foreColor: { state: function() { return queryCommandState('foreColor'); }, result: function(color) {
+                setAttributeOnCurrentSelection('color', color);
+                return getAttributesAndPostMessage();
+            }},
             fontSize: { result: function(size) { 
                 setAttributeOnCurrentSelection('size', size);
                 return getAttributesAndPostMessage();
