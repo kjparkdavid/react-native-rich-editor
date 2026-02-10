@@ -329,15 +329,51 @@ function createHTML(options = {}) {
                 }
             }
 
-            if (node) {
-                let targetElement = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
-                
-                if (targetElement) {
-                    if(editor.content.innerHTML.length > 0) {
-                        appendToStyle(targetElement, attribute, value);
-                        return targetElement.setAttribute(attribute, value);
-                    }                    
-                }
+            // No selection: use ZWSP technique to apply formatting to future typed text
+            var fontEl;
+            var cssProperty = attribute === 'size' ? 'font-size' : 'font-family';
+            var cssValue = attribute === 'size' ? convertSizeToPixel(parseInt(value)) : value;
+
+            // Empty editor: create a font element with ZWSP and replace content
+            if (!editor.content.textContent.trim()) {
+                fontEl = document.createElement('font');
+                fontEl.setAttribute(attribute, value);
+                fontEl.style[cssProperty] = cssValue;
+                fontEl.textContent = '\u200B';
+                var p = document.createElement(editor.paragraphSeparator);
+                p.appendChild(fontEl);
+                editor.content.innerHTML = '';
+                editor.content.appendChild(p);
+                var range = document.createRange();
+                range.setStart(fontEl.firstChild, 1);
+                range.collapse(true);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                return;
+            }
+
+            // Cursor inside an existing <font> element: update its attribute
+            var existingFont = getNodeByName(node, 'FONT');
+            if (existingFont) {
+                existingFont.setAttribute(attribute, value);
+                existingFont.style[cssProperty] = cssValue;
+                return;
+            }
+
+            // Normal case: insert a new <font> element with ZWSP at cursor position
+            if (selection.rangeCount > 0) {
+                fontEl = document.createElement('font');
+                fontEl.setAttribute(attribute, value);
+                fontEl.style[cssProperty] = cssValue;
+                fontEl.textContent = '\u200B';
+                var curRange = selection.getRangeAt(0);
+                curRange.collapse(false);
+                curRange.insertNode(fontEl);
+                var newRange = document.createRange();
+                newRange.setStart(fontEl.firstChild, 1);
+                newRange.collapse(true);
+                selection.removeAllRanges();
+                selection.addRange(newRange);
             }
         }
 
@@ -457,8 +493,17 @@ function createHTML(options = {}) {
                 return;
             }
             isProcessingSelectionChange = true;
-        
+
             try {
+                // Remove orphaned ZWSP-only font placeholders when cursor moves away
+                var allFonts = editor.content.querySelectorAll('font');
+                var sel = window.getSelection();
+                for (var i = 0; i < allFonts.length; i++) {
+                    var f = allFonts[i];
+                    if (f.textContent === '\u200B' && (!sel.anchorNode || !f.contains(sel.anchorNode))) {
+                        f.parentNode.removeChild(f);
+                    }
+                }
                 getAttributesAndPostMessage();
                 getCursorScrollPositionAndPostMessage();
             } finally {
@@ -756,6 +801,25 @@ function createHTML(options = {}) {
                     formatParagraph();
                 }
                 saveSelection();
+                // Clean up ZWSP from font placeholders once user has typed real text
+                var sel = window.getSelection();
+                if (sel.anchorNode && sel.anchorNode.nodeType === Node.TEXT_NODE) {
+                    var textNode = sel.anchorNode;
+                    if (textNode.textContent.length > 1 && textNode.textContent.indexOf('\u200B') !== -1) {
+                        var curOffset = sel.anchorOffset;
+                        var before = textNode.textContent.substring(0, curOffset);
+                        var after = textNode.textContent.substring(curOffset);
+                        var zwspCountBefore = (before.match(/\u200B/g) || []).length;
+                        textNode.textContent = textNode.textContent.replace(/\u200B/g, '');
+                        // Restore cursor position adjusted for removed ZWSPs
+                        var newSel = window.getSelection();
+                        var newRange = document.createRange();
+                        newRange.setStart(textNode, Math.max(0, curOffset - zwspCountBefore));
+                        newRange.collapse(true);
+                        newSel.removeAllRanges();
+                        newSel.addRange(newRange);
+                    }
+                }
                 handleChange(_ref);
                 // Allow normal onChange flow
                 settings.onChange();
