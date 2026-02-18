@@ -107,6 +107,11 @@ export interface RichEditorProps extends WebViewProps {
     onAttributeChanged?: (data: any) => void;
 
     /**
+     * Callback when the content limit is exceeded
+     */
+    onContentLimitWarning?: (data: { level: string }) => void;
+
+    /**
      * Callback when cursor position changes
      */
     trackCursorPosition?: (data: number) => void;
@@ -247,6 +252,8 @@ export class RichEditor extends React.Component<RichEditorProps> {
      * Dismisses the active keyboard and removes focus.
      */
     dismissKeyboard: () => void;
+
+    setFontName: (name: string) => void;
 }
 
 export interface RichToolbarProps {
@@ -302,6 +309,11 @@ export interface RichToolbarProps {
      * Your own set if images for the toolbar
      */
     iconMap?: Record<string, (IconRecord) => React.Element | ImageSourcePropType>;
+
+    /**
+     * Callback when toolbar selection changes
+     */
+    onSelectionChanged?: SelectionChangeListener;
 
     /**
      * Logic for what happens when you press on the add image button
